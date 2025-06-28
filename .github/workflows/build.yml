@@ -1,0 +1,82 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            compiler: g++
+            output: editor-linux-x64
+          - os: ubuntu-latest
+            arch: arm64
+            cross: true
+            compiler: aarch64-linux-gnu-g++
+            output: editor-linux-arm64
+          - os: windows-latest
+            arch: x64
+            output: editor-windows-x64.exe
+          - os: windows-latest
+            arch: arm64
+            output: editor-windows-arm64.exe
+          - os: macos-latest
+            arch: x64
+            clang_arch: x86_64
+            output: editor-macos-x64
+          - os: macos-latest
+            arch: arm64
+            clang_arch: arm64
+            output: editor-macos-arm64
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install cross compiler
+        if: matrix.cross
+        run: sudo apt-get update && sudo apt-get install -y g++-aarch64-linux-gnu
+
+      - name: Build on Linux
+        if: runner.os == 'Linux'
+        run: ${{ matrix.compiler }} -std=c++17 example.cxx -o ${{ matrix.output }}
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build on Windows
+        if: runner.os == 'Windows'
+        run: cl /EHsc /std:c++17 example.cxx /Fe:${{ matrix.output }}
+
+      - name: Build on macOS
+        if: runner.os == 'macOS'
+        run: clang++ -std=c++17 -arch ${{ matrix.clang_arch }} example.cxx -o ${{ matrix.output }}
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path ${{ matrix.output }} -DestinationPath ${{ matrix.output }}.zip
+
+      - name: Package artifact (Unix)
+        if: runner.os != 'Windows'
+        run: tar -czf ${{ matrix.output }}.tar.gz ${{ matrix.output }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.output }}
+          path: |
+            ${{ matrix.output }}.zip
+            ${{ matrix.output }}.tar.gz
+
