@@ -41,13 +41,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install FLTK (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fltk1.3-dev
+          if [ "${{ matrix.cross }}" = 'true' ]; then
+            sudo apt-get install -y libfltk1.3-dev:arm64
+          fi
+
       - name: Install cross compiler
         if: matrix.cross
         run: sudo apt-get update && sudo apt-get install -y g++-aarch64-linux-gnu
 
+      - name: Install FLTK (macOS)
+        if: runner.os == 'macOS'
+        run: brew install fltk
+
       - name: Build on Linux
         if: runner.os == 'Linux'
-        run: ${{ matrix.compiler }} -std=c++17 example.cxx -o ${{ matrix.output }}
+        run: ${{ matrix.compiler }} $(fltk-config --cxxflags) editor.cxx $(fltk-config --ldflags) -o ${{ matrix.output }}
 
       - name: Setup MSVC
         if: runner.os == 'Windows'
@@ -55,13 +68,18 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
 
+      - name: Install FLTK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install fltk -y
+
       - name: Build on Windows
         if: runner.os == 'Windows'
-        run: cl /EHsc /std:c++17 example.cxx /Fe:${{ matrix.output }}
+        run: cl /EHsc /std:c++17 editor.cxx /I"C:\Program Files\fltk\include" /link /LIBPATH:"C:\Program Files\fltk\lib" fltk.lib /OUT:${{ matrix.output }}
 
       - name: Build on macOS
         if: runner.os == 'macOS'
-        run: clang++ -std=c++17 -arch ${{ matrix.clang_arch }} example.cxx -o ${{ matrix.output }}
+        run: clang++ -std=c++17 -arch ${{ matrix.clang_arch }} $(fltk-config --cxxflags) editor.cxx $(fltk-config --ldflags) -o ${{ matrix.output }}
 
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
@@ -79,4 +97,3 @@ jobs:
           path: |
             ${{ matrix.output }}.zip
             ${{ matrix.output }}.tar.gz
-
