@@ -7,12 +7,123 @@
 #include <FL/filename.H>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <cctype>
 
 static Fl_Double_Window *win;
 static Fl_Text_Editor  *editor;
 static Fl_Text_Buffer  *buffer = new Fl_Text_Buffer();
+static Fl_Text_Buffer  *style_buffer = new Fl_Text_Buffer();
 static bool text_changed = false;
 static char current_file[FL_PATH_MAX] = "";
+
+// Style table used for syntax highlighting
+static Fl_Text_Display::Style_Table_Entry style_table[] = {
+    { FL_WHITE,      FL_COURIER,        14 }, // A - plain text
+    { FL_GREEN,      FL_COURIER_ITALIC, 14 }, // B - line comment
+    { FL_GREEN,      FL_COURIER_ITALIC, 14 }, // C - block comment
+    { FL_YELLOW,     FL_COURIER,        14 }, // D - string literal
+    { FL_MAGENTA,    FL_COURIER_BOLD,   14 }, // E - preprocessor
+    { FL_BLUE,       FL_COURIER_BOLD,   14 }  // F - keyword
+};
+
+static const char *keywords[] = {
+    "auto", "bool", "break", "case", "char", "class", "const", "continue",
+    "default", "delete", "do", "double", "else", "enum", "extern", "float",
+    "for", "goto", "if", "inline", "int", "long", "namespace", "new", "operator",
+    "private", "protected", "public", "return", "short", "signed", "sizeof",
+    "static", "struct", "switch", "template", "typedef", "typename", "union",
+    "unsigned", "virtual", "void", "volatile", "while", NULL
+};
+
+static bool is_keyword(const char *s) {
+    for (int i = 0; keywords[i]; ++i)
+        if (strcmp(keywords[i], s) == 0) return true;
+    return false;
+}
+
+static void style_parse(const char *text, char *style, int length) {
+    char current = 'A';
+    int col = 0;
+    for (int i = 0; i < length; ++i) {
+        char c = text[i];
+        if (current == 'B') { // line comment
+            style[i] = 'B';
+            if (c == '\n') { current = 'A'; col = 0; }
+            continue;
+        }
+        if (current == 'C') { // block comment
+            style[i] = 'C';
+            if (c == '*' && i + 1 < length && text[i+1] == '/') {
+                style[++i] = 'C';
+                current = 'A';
+            }
+            if (c == '\n') col = 0; else col++;
+            continue;
+        }
+        if (current == 'D') { // string
+            style[i] = 'D';
+            if (c == '\\') {
+                if (i + 1 < length) style[++i] = 'D';
+                continue;
+            } else if (c == '"') {
+                current = 'A';
+            }
+            if (c == '\n') col = 0; else col++;
+            continue;
+        }
+
+        if (c == '/' && i + 1 < length && text[i+1] == '/') {
+            style[i] = style[i+1] = 'B';
+            current = 'B';
+            ++i;
+            continue;
+        } else if (c == '/' && i + 1 < length && text[i+1] == '*') {
+            style[i] = style[i+1] = 'C';
+            current = 'C';
+            ++i;
+            continue;
+        } else if (c == '"') {
+            style[i] = 'D';
+            current = 'D';
+            continue;
+        } else if (col == 0 && c == '#') {
+            style[i] = 'E';
+            current = 'B';
+            continue;
+        } else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
+            char buf[64];
+            int j = 0;
+            buf[j++] = c;
+            while (i + j < length &&
+                   (std::isalnum(static_cast<unsigned char>(text[i+j])) || text[i+j]=='_') &&
+                   j < (int)sizeof(buf)-1)
+                buf[j++] = text[i+j];
+            buf[j] = '\0';
+            if (is_keyword(buf)) {
+                for (int k = 0; k < j; ++k) style[i+k] = 'F';
+                i += j - 1;
+                col += j;
+                continue;
+            }
+        }
+
+        style[i] = 'A';
+        if (c == '\n') col = 0; else col++;
+    }
+    style[length] = '\0';
+}
+
+static void style_init() {
+    char *text = buffer->text();
+    int length = buffer->length();
+    char *style = new char[length + 1];
+    memset(style, 'A', length);
+    style_parse(text, style, length);
+    style_buffer->text(style);
+    delete[] style;
+    free(text);
+}
 
 static const char* last_file_path() {
     static char path[FL_PATH_MAX];
@@ -38,8 +149,10 @@ static void load_last_file_if_any() {
             if (len && current_file[len-1] == '\n') current_file[len-1] = '\0';
         }
         fclose(fp);
-        if (current_file[0])
+    if (current_file[0]) {
             buffer->loadfile(current_file);
+            style_init();
+        }
     }
 }
 
@@ -55,6 +168,7 @@ static void update_title() {
 static void changed_cb(int, int, int, int, const char*, void*) {
     text_changed = true;
     update_title();
+    style_init();
 }
 
 static void new_cb(Fl_Widget*, void*) {
@@ -66,6 +180,7 @@ static void new_cb(Fl_Widget*, void*) {
     current_file[0] = '\0';
     text_changed = false;
     update_title();
+    style_init();
 }
 
 static void load_file(const char *file) {
@@ -74,6 +189,7 @@ static void load_file(const char *file) {
         text_changed = false;
         update_title();
         save_last_file();
+        style_init();
     } else {
         fl_alert("Cannot open '%s'", file);
     }
@@ -136,13 +252,18 @@ int main(int argc, char **argv) {
     editor = new Fl_Text_Editor(0, 25, win->w(), win->h() - 25);
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
+    editor->textsize(14);
     editor->linenumber_width(40);
     editor->scrollbar_width(Fl::scrollbar_size());
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);
-    editor->color(fl_rgb_color(45,45,45));
+    editor->color(fl_rgb_color(45,45,45), FL_DARK_BLUE);
     editor->textcolor(FL_WHITE);
     editor->cursor_color(FL_WHITE);
     buffer->add_modify_callback(changed_cb, nullptr);
+    style_init();
+    editor->highlight_data(style_buffer, style_table,
+                           sizeof(style_table)/sizeof(style_table[0]),
+                           'A', nullptr, nullptr);
 
     win->resizable(editor);
     win->end();
