@@ -3,6 +3,7 @@
 #include <FL/Fl_Text_Editor.H>
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Native_File_Chooser.H>
+#include <FL/Fl_Scrollbar.H>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
 #include <FL/Fl_Box.H>
@@ -13,7 +14,29 @@
 
 static Fl_Double_Window *win;
 static Fl_Menu_Bar    *menu;
-static Fl_Text_Editor  *editor;
+static int font_size = 14;
+static void set_font_size(int sz);
+class My_Text_Editor : public Fl_Text_Editor {
+public:
+    using Fl_Text_Editor::Fl_Text_Editor;
+    int handle(int e) override {
+        if (e == FL_MOUSEWHEEL && (Fl::event_state() & FL_CTRL)) {
+            int dy = Fl::event_dy();
+            if (dy != 0) {
+                int size = textsize();
+                if (dy < 0)
+                    ++size;
+                else if (size > 4)
+                    --size;
+                set_font_size(size);
+                return 1;
+            }
+        }
+        return Fl_Text_Editor::handle(e);
+    }
+};
+
+static My_Text_Editor  *editor;
 static Fl_Text_Buffer  *buffer = new Fl_Text_Buffer();
 static Fl_Text_Buffer  *style_buffer = new Fl_Text_Buffer();
 static bool text_changed = false;
@@ -143,6 +166,44 @@ static void style_init() {
     style_buffer->text(style);
     delete[] style;
     free(text);
+}
+
+static const char* font_size_path() {
+    static char path[FL_PATH_MAX];
+    const char* home = getenv("HOME");
+    if (home) snprintf(path, sizeof(path), "%s/.lets_code_fontsize", home);
+    else strncpy(path, ".lets_code_fontsize", sizeof(path));
+    return path;
+}
+
+static void save_font_size(int sz) {
+    FILE* fp = fopen(font_size_path(), "w");
+    if (fp) {
+        fprintf(fp, "%d", sz);
+        fclose(fp);
+    }
+}
+
+static int load_font_size() {
+    int sz = font_size;
+    FILE* fp = fopen(font_size_path(), "r");
+    if (fp) {
+        if (fscanf(fp, "%d", &sz) != 1) sz = font_size;
+        fclose(fp);
+    }
+    return sz;
+}
+
+static void set_font_size(int sz) {
+    font_size = sz;
+    if (editor) {
+        editor->textsize(sz);
+    }
+    for (unsigned i = 0; i < sizeof(style_table)/sizeof(style_table[0]); ++i) {
+        style_table[i].size = sz;
+    }
+    save_font_size(sz);
+    if (editor) editor->damage(FL_DAMAGE_ALL);
 }
 
 static const char* last_file_path() {
@@ -276,10 +337,11 @@ int main(int argc, char **argv) {
     menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
 
     const int status_h = 20;
-    editor = new Fl_Text_Editor(0, 25, win->w(), win->h() - 25 - status_h);
+    font_size = load_font_size();
+    editor = new My_Text_Editor(0, 25, win->w(), win->h() - 25 - status_h);
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
-    editor->textsize(14);
+    set_font_size(font_size);
     editor->linenumber_width(30);
     editor->linenumber_bgcolor(fl_rgb_color(45,45,45));
     editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
@@ -289,6 +351,10 @@ int main(int argc, char **argv) {
     editor->color(fl_rgb_color(45,45,45), FL_DARK_BLUE);
     editor->textcolor(FL_WHITE);
     editor->cursor_color(FL_WHITE);
+    Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
+    Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
+    if (hsb) hsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
+    if (vsb) vsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
     status_bar = new Fl_Box(0, win->h() - status_h, win->w(), status_h);
     status_bar->box(FL_FLAT_BOX);
     status_bar->color(fl_rgb_color(50, 50, 50));
