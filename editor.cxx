@@ -9,13 +9,15 @@
 #include <FL/Fl_Box.H>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <cstring>das
 #include <cctype>
+#include <ctime>
 
 static Fl_Double_Window *win;
 static Fl_Menu_Bar    *menu;
 static int font_size = 14;
 static void set_font_size(int sz);
+static void update_status();
 class My_Text_Editor : public Fl_Text_Editor {
 public:
     using Fl_Text_Editor::Fl_Text_Editor;
@@ -32,7 +34,11 @@ public:
                 return 1;
             }
         }
-        return Fl_Text_Editor::handle(e);
+        int ret = Fl_Text_Editor::handle(e);
+        if (e == FL_KEYDOWN || e == FL_KEYUP || e == FL_MOVE ||
+            e == FL_PUSH || e == FL_DRAG || e == FL_RELEASE)
+            update_status();
+        return ret;
     }
 };
 
@@ -41,7 +47,9 @@ static Fl_Text_Buffer  *buffer = new Fl_Text_Buffer();
 static Fl_Text_Buffer  *style_buffer = new Fl_Text_Buffer();
 static bool text_changed = false;
 static char current_file[FL_PATH_MAX] = "";
-static Fl_Box          *status_bar = nullptr;
+static Fl_Box          *status_left = nullptr;
+static Fl_Box          *status_right = nullptr;
+static time_t           last_save_time = 0;
 
 class EditorWindow : public Fl_Double_Window {
 public:
@@ -50,12 +58,14 @@ public:
 
     void resize(int X, int Y, int W, int H) override {
         Fl_Double_Window::resize(X, Y, W, H);
-        if (menu && editor && status_bar) {
-            const int status_h = status_bar->h();
+        if (menu && editor && status_left && status_right) {
+            const int status_h = status_left->h();
             editor->size(W, H - menu->h() - status_h);
             menu->size(W, menu->h());
-            status_bar->position(0, H - status_h);
-            status_bar->size(W, status_h);
+            status_left->position(0, H - status_h);
+            status_left->size(W/2, status_h);
+            status_right->position(W/2, H - status_h);
+            status_right->size(W - W/2, status_h);
         }
     }
 };
@@ -233,6 +243,8 @@ static void load_last_file_if_any() {
     if (current_file[0]) {
             buffer->loadfile(current_file);
             style_init();
+            last_save_time = 0;
+            update_status();
         }
     }
 }
@@ -246,10 +258,32 @@ static void update_title() {
     win->copy_label(title);
 }
 
+static void update_status() {
+    if (!status_left || !status_right || !editor) return;
+    int pos = editor->insert_position();
+    int line = buffer->count_lines(0, pos) + 1;
+    int col = pos - buffer->line_start(pos) + 1;
+    char left[64];
+    snprintf(left, sizeof(left), "Ln %d, Col %d", line, col);
+    status_left->copy_label(left);
+
+    char timebuf[64] = "Never";
+    if (last_save_time) {
+        std::tm *tm = std::localtime(&last_save_time);
+        if (tm) strftime(timebuf, sizeof(timebuf), "%H:%M:%S", tm);
+    }
+    char right[128];
+    snprintf(right, sizeof(right), "%s | Last: %s", text_changed ? "Modified" : "Saved", timebuf);
+    status_right->copy_label(right);
+    status_left->redraw();
+    status_right->redraw();
+}
+
 static void changed_cb(int, int, int, int, const char*, void*) {
     text_changed = true;
     update_title();
     style_init();
+    update_status();
 }
 
 static void new_cb(Fl_Widget*, void*) {
@@ -262,6 +296,8 @@ static void new_cb(Fl_Widget*, void*) {
     text_changed = false;
     update_title();
     style_init();
+    last_save_time = 0;
+    update_status();
 }
 
 static void load_file(const char *file) {
@@ -271,6 +307,8 @@ static void load_file(const char *file) {
         update_title();
         save_last_file();
         style_init();
+        last_save_time = 0;
+        update_status();
     } else {
         fl_alert("Cannot open '%s'", file);
     }
@@ -289,6 +327,8 @@ static void save_to(const char *file) {
         text_changed = false;
         update_title();
         save_last_file();
+        last_save_time = std::time(nullptr);
+        update_status();
     } else {
         fl_alert("Cannot save '%s'", file);
     }
@@ -355,14 +395,23 @@ int main(int argc, char **argv) {
     Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
     if (hsb) hsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
     if (vsb) vsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
-    status_bar = new Fl_Box(0, win->h() - status_h, win->w(), status_h);
-    status_bar->box(FL_FLAT_BOX);
-    status_bar->color(fl_rgb_color(50, 50, 50));
-    status_bar->labelcolor(fl_rgb_color(230, 230, 230));
-    status_bar->labelsize(12);
-    status_bar->label("");
+    status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
+    status_left->box(FL_FLAT_BOX);
+    status_left->color(fl_rgb_color(50, 50, 50));
+    status_left->labelcolor(fl_rgb_color(230, 230, 230));
+    status_left->labelsize(12);
+    status_left->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    status_left->label("");
+    status_right = new Fl_Box(win->w()/2, win->h() - status_h, win->w() - win->w()/2, status_h);
+    status_right->box(FL_FLAT_BOX);
+    status_right->color(fl_rgb_color(50, 50, 50));
+    status_right->labelcolor(fl_rgb_color(230, 230, 230));
+    status_right->labelsize(12);
+    status_right->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+    status_right->label("");
     buffer->add_modify_callback(changed_cb, nullptr);
     style_init();
+    update_status();
     editor->highlight_data(style_buffer, style_table,
                            sizeof(style_table)/sizeof(style_table[0]),
                            'A', nullptr, nullptr);
@@ -376,6 +425,7 @@ int main(int argc, char **argv) {
     } else {
         load_last_file_if_any();
         if (!current_file[0]) update_title();
+    update_status();
     }
 
     return Fl::run();
