@@ -5,7 +5,8 @@
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
-#include <fstream>
+#include <cstdio>
+#include <cstdlib>
 
 static Fl_Double_Window *win;
 static Fl_Text_Editor  *editor;
@@ -13,11 +14,40 @@ static Fl_Text_Buffer  *buffer = new Fl_Text_Buffer();
 static bool text_changed = false;
 static char current_file[FL_PATH_MAX] = "";
 
+static const char* last_file_path() {
+    static char path[FL_PATH_MAX];
+    const char* home = getenv("HOME");
+    if (home) snprintf(path, sizeof(path), "%s/.lets_code_last", home);
+    else strncpy(path, ".lets_code_last", sizeof(path));
+    return path;
+}
+
+static void save_last_file() {
+    FILE* fp = fopen(last_file_path(), "w");
+    if (fp) {
+        fputs(current_file, fp);
+        fclose(fp);
+    }
+}
+
+static void load_last_file_if_any() {
+    FILE* fp = fopen(last_file_path(), "r");
+    if (fp) {
+        if (fgets(current_file, sizeof(current_file), fp)) {
+            size_t len = strlen(current_file);
+            if (len && current_file[len-1] == '\n') current_file[len-1] = '\0';
+        }
+        fclose(fp);
+        if (current_file[0])
+            buffer->loadfile(current_file);
+    }
+}
+
 static void update_title() {
     const char *name = current_file[0] ? fl_filename_name(current_file)
                                        : "Untitled";
     char title[FL_PATH_MAX + 20];
-    snprintf(title, sizeof(title), "%s%s - FLTK Text Editor",
+    snprintf(title, sizeof(title), "%s%s - Let‘s code",
              name, text_changed ? "*" : "");
     win->copy_label(title);
 }
@@ -43,6 +73,7 @@ static void load_file(const char *file) {
         strncpy(current_file, file, sizeof(current_file));
         text_changed = false;
         update_title();
+        save_last_file();
     } else {
         fl_alert("Cannot open '%s'", file);
     }
@@ -60,6 +91,7 @@ static void save_to(const char *file) {
         strncpy(current_file, file, sizeof(current_file));
         text_changed = false;
         update_title();
+        save_last_file();
     } else {
         fl_alert("Cannot save '%s'", file);
     }
@@ -81,14 +113,20 @@ static void quit_cb(Fl_Widget*, void*) {
         if (r == 0) return;
         if (r == 1) save_cb(NULL, NULL);
     }
+    save_last_file();
     win->hide();
 }
 
 int main(int argc, char **argv) {
-    Fl::background(38, 38, 38);
-    Fl::foreground(220, 220, 220);
+    // Use a dark color palette similar to the IntelliJ IDEA theme
+    Fl::background(43, 43, 43);          // primary background
+    Fl::background2(60, 63, 65);         // secondary background
+    Fl::foreground(220, 220, 220);       // text color
+    Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75, 110, 175));
+    Fl::scheme("gtk+");
+    Fl::scrollbar_size(16);              // wider scrollbars for a modern look
 
-    win = new Fl_Double_Window(800, 600, "FLTK Text Editor");
+    win = new Fl_Double_Window(800, 600, "Let‘s code");
     Fl_Menu_Bar *menu = new Fl_Menu_Bar(0, 0, win->w(), 25);
     menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
     menu->add("&File/Open", FL_COMMAND + 'o', open_cb);
@@ -99,6 +137,7 @@ int main(int argc, char **argv) {
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
     editor->linenumber_width(40);
+    editor->scrollbar_width(Fl::scrollbar_size());
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);
     editor->color(fl_rgb_color(45,45,45));
     editor->textcolor(FL_WHITE);
@@ -109,8 +148,12 @@ int main(int argc, char **argv) {
     win->end();
     win->show(argc, argv);
 
-    if (argc > 1) load_file(argv[1]);
-    else update_title();
+    if (argc > 1) {
+        load_file(argv[1]);
+    } else {
+        load_last_file_if_any();
+        if (!current_file[0]) update_title();
+    }
 
     return Fl::run();
 }
