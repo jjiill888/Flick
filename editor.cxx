@@ -51,6 +51,12 @@ static Fl_Box          *status_left = nullptr;
 static Fl_Box          *status_right = nullptr;
 static time_t           last_save_time = 0;
 
+enum Theme { THEME_DARK, THEME_LIGHT };
+static Theme current_theme = THEME_DARK;
+static void apply_theme(Theme theme);
+static void theme_light_cb(Fl_Widget*, void*);
+static void theme_dark_cb(Fl_Widget*, void*);
+
 class EditorWindow : public Fl_Double_Window {
 public:
     EditorWindow(int W, int H, const char* L = 0)
@@ -354,12 +360,69 @@ static void quit_cb(Fl_Widget*, void*) {
     win->hide();
 }
 
+static void apply_theme(Theme theme) {
+    if (theme == THEME_DARK) {
+        Fl::background(50, 50, 50);
+        Fl::background2(60, 60, 60);
+        Fl::foreground(230, 230, 230);
+        if (menu) {
+            menu->color(fl_rgb_color(50, 50, 50));
+            menu->textcolor(fl_rgb_color(230, 230, 230));
+            menu->selection_color(fl_rgb_color(80, 80, 80));
+        }
+        if (status_left && status_right) {
+            status_left->color(fl_rgb_color(50, 50, 50));
+            status_left->labelcolor(fl_rgb_color(230, 230, 230));
+            status_right->color(fl_rgb_color(50, 50, 50));
+            status_right->labelcolor(fl_rgb_color(230, 230, 230));
+        }
+        if (editor) {
+            editor->color(fl_rgb_color(45,45,45), FL_DARK_BLUE);
+            editor->textcolor(FL_WHITE);
+            editor->cursor_color(FL_WHITE);
+            editor->linenumber_bgcolor(fl_rgb_color(45,45,45));
+            editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
+            Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
+            Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
+            if (hsb) hsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
+            if (vsb) vsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
+        }
+    } else {
+        Fl::background(240, 240, 240);
+        Fl::background2(250, 250, 250);
+        Fl::foreground(30, 30, 30);
+        if (menu) {
+            menu->color(fl_rgb_color(240, 240, 240));
+            menu->textcolor(fl_rgb_color(30, 30, 30));
+            menu->selection_color(fl_rgb_color(210, 210, 210));
+        }
+        if (status_left && status_right) {
+            status_left->color(fl_rgb_color(240, 240, 240));
+            status_left->labelcolor(fl_rgb_color(30, 30, 30));
+            status_right->color(fl_rgb_color(240, 240, 240));
+            status_right->labelcolor(fl_rgb_color(30, 30, 30));
+        }
+        if (editor) {
+            editor->color(fl_rgb_color(255,255,255), FL_DARK_BLUE);
+            editor->textcolor(FL_BLACK);
+            editor->cursor_color(FL_BLACK);
+            editor->linenumber_bgcolor(fl_rgb_color(235,235,235));
+            editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
+            Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
+            Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
+            if (hsb) hsb->color(fl_rgb_color(220,220,220), fl_rgb_color(200,200,200));
+            if (vsb) vsb->color(fl_rgb_color(220,220,220), fl_rgb_color(200,200,200));
+        }
+    }
+    current_theme = theme;
+    if (win) win->redraw();
+}
+
+static void theme_light_cb(Fl_Widget*, void*) { apply_theme(THEME_LIGHT); }
+static void theme_dark_cb(Fl_Widget*, void*)  { apply_theme(THEME_DARK); }
+
 int main(int argc, char **argv) {
-    // Use a consistent dark theme for the entire application
     Fl::get_system_colors();
-    Fl::background(50, 50, 50);          // primary background
-    Fl::background2(60, 60, 60);         // secondary background
-    Fl::foreground(230, 230, 230);       // text color
     // Ensure the editor uses the system's monospace font family
     Fl::set_font(FL_COURIER, "Monospace");
     Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75, 110, 175));
@@ -368,13 +431,12 @@ int main(int argc, char **argv) {
 
     win = new EditorWindow(800, 600, "Let‘s code");
     menu = new Fl_Menu_Bar(0, 0, win->w(), 25);
-    menu->color(fl_rgb_color(50, 50, 50));
-    menu->textcolor(fl_rgb_color(230, 230, 230));
-    menu->selection_color(fl_rgb_color(80, 80, 80));
     menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
     menu->add("&File/Open", FL_COMMAND + 'o', open_cb);
     menu->add("&File/Save", FL_COMMAND + 's', save_cb);
     menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
+    menu->add("&View/Dark Theme", 0, theme_dark_cb);
+    menu->add("&View/Light Theme", 0, theme_light_cb);
 
     const int status_h = 20;
     font_size = load_font_size();
@@ -383,32 +445,22 @@ int main(int argc, char **argv) {
     editor->textfont(FL_COURIER);
     set_font_size(font_size);
     editor->linenumber_width(30);
-    editor->linenumber_bgcolor(fl_rgb_color(45,45,45));
-    editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
     editor->linenumber_align(FL_ALIGN_RIGHT);
     editor->scrollbar_width(Fl::scrollbar_size());
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);
-    editor->color(fl_rgb_color(45,45,45), FL_DARK_BLUE);
-    editor->textcolor(FL_WHITE);
-    editor->cursor_color(FL_WHITE);
     Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
     Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
-    if (hsb) hsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
-    if (vsb) vsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
     status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
     status_left->box(FL_FLAT_BOX);
-    status_left->color(fl_rgb_color(50, 50, 50));
-    status_left->labelcolor(fl_rgb_color(230, 230, 230));
     status_left->labelsize(12);
     status_left->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     status_left->label("");
     status_right = new Fl_Box(win->w()/2, win->h() - status_h, win->w() - win->w()/2, status_h);
     status_right->box(FL_FLAT_BOX);
-    status_right->color(fl_rgb_color(50, 50, 50));
-    status_right->labelcolor(fl_rgb_color(230, 230, 230));
     status_right->labelsize(12);
     status_right->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
     status_right->label("");
+    apply_theme(current_theme);
     buffer->add_modify_callback(changed_cb, nullptr);
     style_init();
     update_status();
