@@ -75,14 +75,15 @@ public:
         if (menu && editor && status_left && status_right) {
             const int status_h = status_left->h();
             int tree_w = file_tree ? tree_width : 0;
-            editor->position(0, menu->h());
-            editor->size(W - tree_w, H - menu->h() - status_h);
+            int resize_w = tree_resizer ? tree_resizer->w() : 0;
+            editor->position(tree_w + resize_w, menu->h());
+            editor->size(W - tree_w - resize_w, H - menu->h() - status_h);
             if (file_tree) {
-                file_tree->position(W - tree_w, menu->h());
+                file_tree->position(0, menu->h());
                 file_tree->size(tree_w, H - menu->h() - status_h);
                 if (tree_resizer) {
-                    tree_resizer->position(W - tree_w - tree_resizer->w(), menu->h());
-                    tree_resizer->size(tree_resizer->w(), H - menu->h() - status_h);
+                    tree_resizer->position(tree_w, menu->h());
+                    tree_resizer->size(resize_w, H - menu->h() - status_h);
                 }
             }
             menu->size(W, menu->h());
@@ -104,7 +105,7 @@ public:
         switch (e) {
         case FL_PUSH:
         case FL_DRAG:
-            tree_width = parent()->w() - Fl::event_x();
+            tree_width = Fl::event_x();
             if (tree_width < 100) tree_width = 100;
             if (tree_width > parent()->w() - 100) tree_width = parent()->w() - 100;
             parent()->redraw();
@@ -566,7 +567,13 @@ int main(int argc, char **argv) {
 
     const int status_h = 20;
     font_size = load_font_size();
-    editor = new My_Text_Editor(0, 25, win->w() - tree_width, win->h() - 25 - status_h);
+    file_tree = new Fl_Tree(0, 25, tree_width, win->h() - 25 - status_h);
+    file_tree->callback(tree_cb);
+    file_tree->showroot(false);
+    tree_resizer = new TreeResizer(tree_width, 25, 4, win->h() - 25 - status_h);
+    editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
+                                win->w() - tree_width - tree_resizer->w(),
+                                win->h() - 25 - status_h);
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
     set_font_size(font_size);
@@ -576,10 +583,6 @@ int main(int argc, char **argv) {
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);
     Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
     Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
-    file_tree = new Fl_Tree(win->w() - tree_width, 25, tree_width, win->h() - 25 - status_h);
-    file_tree->callback(tree_cb);
-    file_tree->showroot(false);
-    tree_resizer = new TreeResizer(win->w() - tree_width - 4, 25, 4, win->h() - 25 - status_h);
     status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
     status_left->box(FL_FLAT_BOX);
     status_left->labelsize(12);
