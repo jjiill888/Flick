@@ -405,12 +405,22 @@ static void add_folder_items(const char* abs, const char* rel) {
     closedir(d);
 }
 
+static void collapse_first_level() {
+    Fl_Tree_Item* root = file_tree->root();
+    if (!root) return;
+    for (int i = 0; i < root->children(); ++i) {
+        Fl_Tree_Item* child = root->child(i);
+        if (child->has_children()) child->close();
+    }
+}
+
 static void load_folder(const char* folder) {
     strncpy(current_folder, folder, sizeof(current_folder));
     file_tree->clear();
     file_tree->root_label("");
     file_tree->showroot(false);
     add_folder_items(folder, "");
+    collapse_first_level();
     save_last_folder();
 }
 
