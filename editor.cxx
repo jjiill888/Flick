@@ -4,6 +4,7 @@
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/Fl_Scrollbar.H>
+#include <FL/Fl_Tree.H>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
 #include <FL/Fl_Box.H>
@@ -12,12 +13,16 @@
 #include <cstring>
 #include <cctype>
 #include <ctime>
+#include <dirent.h>
+#include <sys/stat.h>
 
 static Fl_Double_Window *win;
 static Fl_Menu_Bar    *menu;
+static Fl_Tree        *file_tree = nullptr;
 static int font_size = 14;
 static void set_font_size(int sz);
 static void update_status();
+static void update_title();
 class My_Text_Editor : public Fl_Text_Editor {
 public:
     using Fl_Text_Editor::Fl_Text_Editor;
@@ -47,9 +52,12 @@ static Fl_Text_Buffer  *buffer = new Fl_Text_Buffer();
 static Fl_Text_Buffer  *style_buffer = new Fl_Text_Buffer();
 static bool text_changed = false;
 static char current_file[FL_PATH_MAX] = "";
+static char current_folder[FL_PATH_MAX] = "";
 static Fl_Box          *status_left = nullptr;
 static Fl_Box          *status_right = nullptr;
+static Fl_Box          *tree_resizer = nullptr;
 static time_t           last_save_time = 0;
+static int             tree_width = 200;
 
 enum Theme { THEME_DARK, THEME_LIGHT };
 static Theme current_theme = THEME_DARK;
@@ -66,13 +74,43 @@ public:
         Fl_Double_Window::resize(X, Y, W, H);
         if (menu && editor && status_left && status_right) {
             const int status_h = status_left->h();
-            editor->size(W, H - menu->h() - status_h);
+            int tree_w = file_tree ? tree_width : 0;
+            editor->position(0, menu->h());
+            editor->size(W - tree_w, H - menu->h() - status_h);
+            if (file_tree) {
+                file_tree->position(W - tree_w, menu->h());
+                file_tree->size(tree_w, H - menu->h() - status_h);
+                if (tree_resizer) {
+                    tree_resizer->position(W - tree_w - tree_resizer->w(), menu->h());
+                    tree_resizer->size(tree_resizer->w(), H - menu->h() - status_h);
+                }
+            }
             menu->size(W, menu->h());
             status_left->position(0, H - status_h);
             status_left->size(W/2, status_h);
             status_right->position(W/2, H - status_h);
             status_right->size(W - W/2, status_h);
         }
+    }
+};
+
+class TreeResizer : public Fl_Box {
+public:
+    TreeResizer(int X, int Y, int W, int H) : Fl_Box(X, Y, W, H) {
+        box(FL_FLAT_BOX);
+        color(fl_rgb_color(80,80,80));
+    }
+    int handle(int e) override {
+        switch (e) {
+        case FL_PUSH:
+        case FL_DRAG:
+            tree_width = parent()->w() - Fl::event_x();
+            if (tree_width < 100) tree_width = 100;
+            if (tree_width > parent()->w() - 100) tree_width = parent()->w() - 100;
+            parent()->redraw();
+            return 1;
+        }
+        return Fl_Box::handle(e);
     }
 };
 
@@ -238,6 +276,22 @@ static void save_last_file() {
     }
 }
 
+static const char* last_folder_path() {
+    static char path[FL_PATH_MAX];
+    const char* home = getenv("HOME");
+    if (home) snprintf(path, sizeof(path), "%s/.lets_code_last_folder", home);
+    else strncpy(path, ".lets_code_last_folder", sizeof(path));
+    return path;
+}
+
+static void save_last_folder() {
+    FILE* fp = fopen(last_folder_path(), "w");
+    if (fp) {
+        fputs(current_folder, fp);
+        fclose(fp);
+    }
+}
+
 static void load_last_file_if_any() {
     FILE* fp = fopen(last_file_path(), "r");
     if (fp) {
@@ -246,14 +300,17 @@ static void load_last_file_if_any() {
             if (len && current_file[len-1] == '\n') current_file[len-1] = '\0';
         }
         fclose(fp);
-    if (current_file[0]) {
+        if (current_file[0]) {
             buffer->loadfile(current_file);
+            text_changed = false;
+            update_title();
             style_init();
             last_save_time = 0;
             update_status();
         }
     }
 }
+
 
 static void update_title() {
     const char *name = current_file[0] ? fl_filename_name(current_file)
@@ -325,6 +382,73 @@ static void open_cb(Fl_Widget*, void*) {
     fc.title("Open File...");
     fc.type(Fl_Native_File_Chooser::BROWSE_FILE);
     if (fc.show() == 0) load_file(fc.filename());
+}
+
+static void add_folder_items(const char* abs, const char* rel) {
+    DIR* d = opendir(abs);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char abspath[FL_PATH_MAX];
+        snprintf(abspath, sizeof(abspath), "%s/%s", abs, e->d_name);
+        char relpath[FL_PATH_MAX];
+        if (rel && *rel) snprintf(relpath, sizeof(relpath), "%s/%s", rel, e->d_name);
+        else snprintf(relpath, sizeof(relpath), "%s", e->d_name);
+        struct stat st;
+        if (stat(abspath, &st) == 0) {
+            file_tree->add(relpath);
+            if (S_ISDIR(st.st_mode)) add_folder_items(abspath, relpath);
+        }
+    }
+    closedir(d);
+}
+
+static void load_folder(const char* folder) {
+    strncpy(current_folder, folder, sizeof(current_folder));
+    file_tree->clear();
+    file_tree->root_label("");
+    file_tree->showroot(false);
+    add_folder_items(folder, "");
+    save_last_folder();
+}
+
+static void load_last_folder_if_any() {
+    FILE* fp = fopen(last_folder_path(), "r");
+    if (fp) {
+        if (fgets(current_folder, sizeof(current_folder), fp)) {
+            size_t len = strlen(current_folder);
+            if (len && current_folder[len-1] == '\n') current_folder[len-1] = '\0';
+        }
+        fclose(fp);
+        if (current_folder[0]) load_folder(current_folder);
+    }
+}
+
+static void tree_cb(Fl_Widget* w, void*) {
+    Fl_Tree* tr = static_cast<Fl_Tree*>(w);
+    Fl_Tree_Item* it = tr->callback_item();
+    if (!it) return;
+    if (tr->callback_reason() == FL_TREE_REASON_SELECTED && !it->has_children()) {
+        char rel[FL_PATH_MAX];
+        tr->item_pathname(rel, sizeof(rel), it);
+        const char* root_lbl = file_tree->root()->label();
+        if (root_lbl && *root_lbl) {
+            size_t len = strlen(root_lbl);
+            if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
+                memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+        }
+        char path[FL_PATH_MAX * 2];
+        snprintf(path, sizeof(path), "%s/%s", current_folder, rel);
+        load_file(path);
+    }
+}
+
+static void open_folder_cb(Fl_Widget*, void*) {
+    Fl_Native_File_Chooser fc;
+    fc.title("Open Folder...");
+    fc.type(Fl_Native_File_Chooser::BROWSE_DIRECTORY);
+    if (fc.show() == 0) load_folder(fc.filename());
 }
 
 static void save_to(const char *file) {
@@ -429,10 +553,12 @@ int main(int argc, char **argv) {
     Fl::scheme("gtk+");
     Fl::scrollbar_size(16);              // wider scrollbars for a modern look
 
-    win = new EditorWindow(800, 600, "Let‘s code");
+    win = new EditorWindow(1301, 887, "Let‘s code");
+    win->callback(quit_cb);
     menu = new Fl_Menu_Bar(0, 0, win->w(), 25);
     menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
     menu->add("&File/Open", FL_COMMAND + 'o', open_cb);
+    menu->add("&File/Open Folder", 0, open_folder_cb);
     menu->add("&File/Save", FL_COMMAND + 's', save_cb);
     menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
     menu->add("&View/Dark Theme", 0, theme_dark_cb);
@@ -440,7 +566,7 @@ int main(int argc, char **argv) {
 
     const int status_h = 20;
     font_size = load_font_size();
-    editor = new My_Text_Editor(0, 25, win->w(), win->h() - 25 - status_h);
+    editor = new My_Text_Editor(0, 25, win->w() - tree_width, win->h() - 25 - status_h);
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
     set_font_size(font_size);
@@ -450,6 +576,10 @@ int main(int argc, char **argv) {
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);
     Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
     Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
+    file_tree = new Fl_Tree(win->w() - tree_width, 25, tree_width, win->h() - 25 - status_h);
+    file_tree->callback(tree_cb);
+    file_tree->showroot(false);
+    tree_resizer = new TreeResizer(win->w() - tree_width - 4, 25, 4, win->h() - 25 - status_h);
     status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
     status_left->box(FL_FLAT_BOX);
     status_left->labelsize(12);
@@ -464,6 +594,7 @@ int main(int argc, char **argv) {
     buffer->add_modify_callback(changed_cb, nullptr);
     style_init();
     update_status();
+    load_last_folder_if_any();
     editor->highlight_data(style_buffer, style_table,
                            sizeof(style_table)/sizeof(style_table[0]),
                            'A', nullptr, nullptr);
@@ -477,7 +608,7 @@ int main(int argc, char **argv) {
     } else {
         load_last_file_if_any();
         if (!current_file[0]) update_title();
-    update_status();
+        update_status();
     }
 
     return Fl::run();
