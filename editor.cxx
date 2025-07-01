@@ -2,6 +2,7 @@
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Text_Editor.H>
 #include <FL/Fl_Menu_Bar.H>
+#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Tree.H>
@@ -23,6 +24,7 @@ static int font_size = 14;
 static void set_font_size(int sz);
 static void update_status();
 static void update_title();
+static Fl_Menu_Button *context_menu = nullptr;
 class My_Text_Editor : public Fl_Text_Editor {
 public:
     using Fl_Text_Editor::Fl_Text_Editor;
@@ -38,6 +40,11 @@ public:
                 set_font_size(size);
                 return 1;
             }
+        }
+        if (e == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE && context_menu) {
+            context_menu->position(Fl::event_x(), Fl::event_y());
+            context_menu->popup();
+            return 1;                               // bypass default popup
         }
         int ret = Fl_Text_Editor::handle(e);
         if (e == FL_KEYDOWN || e == FL_KEYUP || e == FL_MOVE ||
@@ -64,6 +71,11 @@ static Theme current_theme = THEME_DARK;
 static void apply_theme(Theme theme);
 static void theme_light_cb(Fl_Widget*, void*);
 static void theme_dark_cb(Fl_Widget*, void*);
+
+static void cut_cb(Fl_Widget*, void*);
+static void copy_cb(Fl_Widget*, void*);
+static void paste_cb(Fl_Widget*, void*);
+static void select_all_cb(Fl_Widget*, void*);
 
 class EditorWindow : public Fl_Double_Window {
 public:
@@ -556,6 +568,11 @@ static void apply_theme(Theme theme) {
 static void theme_light_cb(Fl_Widget*, void*) { apply_theme(THEME_LIGHT); }
 static void theme_dark_cb(Fl_Widget*, void*)  { apply_theme(THEME_DARK); }
 
+static void cut_cb(Fl_Widget*, void*)        { Fl_Text_Editor::kf_cut(0, editor); }
+static void copy_cb(Fl_Widget*, void*)       { Fl_Text_Editor::kf_copy(0, editor); }
+static void paste_cb(Fl_Widget*, void*)      { Fl_Text_Editor::kf_paste(0, editor); }
+static void select_all_cb(Fl_Widget*, void*) { Fl_Text_Editor::kf_select_all(0, editor); }
+
 int main(int argc, char **argv) {
     Fl::get_system_colors();
     // Ensure the editor uses the system's monospace font family
@@ -593,6 +610,12 @@ int main(int argc, char **argv) {
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);
     Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
     Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
+    context_menu = new Fl_Menu_Button(0, 0, 0, 0);
+    context_menu->hide();
+    context_menu->add("Cut", 0, cut_cb);
+    context_menu->add("Copy", 0, copy_cb);
+    context_menu->add("Paste", 0, paste_cb);
+    context_menu->add("Select All", 0, select_all_cb);
     status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
     status_left->box(FL_FLAT_BOX);
     status_left->labelsize(12);
