@@ -16,6 +16,7 @@
 #include <ctime>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <string>
 
 static Fl_Double_Window *win;
 static Fl_Menu_Bar    *menu;
@@ -76,6 +77,8 @@ static void cut_cb(Fl_Widget*, void*);
 static void copy_cb(Fl_Widget*, void*);
 static void paste_cb(Fl_Widget*, void*);
 static void select_all_cb(Fl_Widget*, void*);
+static void find_cb(Fl_Widget*, void*);
+static void replace_cb(Fl_Widget*, void*);
 
 class EditorWindow : public Fl_Double_Window {
 public:
@@ -134,7 +137,8 @@ static Fl_Text_Display::Style_Table_Entry style_table[] = {
     { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // C - block comment
     { fl_rgb_color(206,145,120), FL_COURIER,        14 }, // D - string literal
     { fl_rgb_color( 86,156,214), FL_COURIER_BOLD,   14 }, // E - preprocessor
-    { fl_rgb_color(197,134,192), FL_COURIER_BOLD,   14 }  // F - keyword
+    { fl_rgb_color(197,134,192), FL_COURIER_BOLD,   14 }, // F - keyword
+    { fl_rgb_color(255,255,0),   FL_COURIER,        14 }  // G - search highlight
 };
 
 static const char *keywords[] = {
@@ -573,6 +577,191 @@ static void copy_cb(Fl_Widget*, void*)       { Fl_Text_Editor::kf_copy(0, editor
 static void paste_cb(Fl_Widget*, void*)      { Fl_Text_Editor::kf_paste(0, editor); }
 static void select_all_cb(Fl_Widget*, void*) { Fl_Text_Editor::kf_select_all(0, editor); }
 
+static bool replace_all(std::string& data, const std::string& search,
+                        const std::string& replace) {
+    bool changed = false;
+    size_t pos = 0;
+    while ((pos = data.find(search, pos)) != std::string::npos) {
+        data.replace(pos, search.length(), replace);
+        pos += replace.length();
+        changed = true;
+    }
+    return changed;
+}
+
+static void count_in_file(const char* file, const char* search, int* count) {
+    FILE* fp = fopen(file, "rb");
+    if (!fp) return;
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    std::string data(len, '\0');
+    fread(data.data(), 1, len, fp);
+    fclose(fp);
+    size_t pos = 0;
+    while ((pos = data.find(search, pos)) != std::string::npos) {
+        ++*count;
+        pos += strlen(search);
+    }
+}
+
+static void replace_in_file(const char* file, const char* search,
+                            const char* replace) {
+    FILE* fp = fopen(file, "rb");
+    if (!fp) return;
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    std::string data(len, '\0');
+    fread(data.data(), 1, len, fp);
+    fclose(fp);
+
+    if (replace_all(data, search, replace)) {
+        fp = fopen(file, "wb");
+        if (fp) {
+            fwrite(data.data(), 1, data.size(), fp);
+            fclose(fp);
+        }
+        if (strcmp(file, current_file) == 0) {
+            buffer->text(data.c_str());
+            text_changed = false;
+            update_title();
+            style_init();
+            last_save_time = std::time(nullptr);
+            update_status();
+        }
+    }
+}
+
+static int highlight_in_buffer(const char* search, int* first_pos) {
+    style_init();
+    char* text = buffer->text();
+    char* style = style_buffer->text();
+    int len = buffer->length();
+    size_t slen = strlen(search);
+    int count = 0;
+    if (first_pos) *first_pos = -1;
+    for (int i = 0; i <= len - (int)slen; ) {
+        if (strncmp(text + i, search, slen) == 0) {
+            if (first_pos && *first_pos == -1) *first_pos = i;
+            for (size_t k = 0; k < slen && i + (int)k < len; ++k)
+                style[i + k] = 'G';
+            i += slen;
+            ++count;
+        } else {
+            ++i;
+        }
+    }
+    style_buffer->text(style);
+    free(style);
+    free(text);
+    editor->damage(FL_DAMAGE_ALL);
+    return count;
+}
+
+static void count_in_folder(const char* folder, const char* search, int* count) {
+    DIR* d = opendir(folder);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char path[FL_PATH_MAX];
+        snprintf(path, sizeof(path), "%s/%s", folder, e->d_name);
+        struct stat st;
+        if (stat(path, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode))
+            count_in_folder(path, search, count);
+        else if (S_ISREG(st.st_mode))
+            count_in_file(path, search, count);
+    }
+    closedir(d);
+}
+
+static void replace_in_folder(const char* folder, const char* search,
+                              const char* replace) {
+    DIR* d = opendir(folder);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char path[FL_PATH_MAX];
+        snprintf(path, sizeof(path), "%s/%s", folder, e->d_name);
+        struct stat st;
+        if (stat(path, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode))
+            replace_in_folder(path, search, replace);
+        else if (S_ISREG(st.st_mode))
+            replace_in_file(path, search, replace);
+    }
+    closedir(d);
+}
+
+static void find_cb(Fl_Widget*, void*) {
+    if (!current_folder[0]) {
+        fl_alert("No folder opened");
+        return;
+    }
+    const char* term = fl_input("Find:", "");
+    if (!term || !*term) return;
+    int total = 0;
+    count_in_folder(current_folder, term, &total);
+    int first_pos = -1;
+    int current = highlight_in_buffer(term, &first_pos);
+    if (first_pos >= 0) {
+        buffer->select(first_pos, first_pos + strlen(term));
+        editor->insert_position(first_pos);
+        int line = buffer->count_lines(0, first_pos);
+        int lines_vis = editor->h() / (editor->textsize() + 4);
+        int top = line - lines_vis/2;
+        if (top < 0) top = 0;
+        editor->scroll(top, 0);
+        editor->show_insert_position();
+    }
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Found %d matches (%d in current file)", total, current);
+    fl_message("%s", msg);
+}
+
+static void replace_cb(Fl_Widget*, void*) {
+    if (!current_folder[0] && !current_file[0]) {
+        fl_alert("No file opened");
+        return;
+    }
+    const char* find = fl_input("Find:", "");
+    if (!find || !*find) return;
+    const char* repl = fl_input("Replace with:", "");
+    if (!repl) return;
+    int total = 0;
+    if (current_folder[0])
+        count_in_folder(current_folder, find, &total);
+    else
+        count_in_file(current_file, find, &total);
+    if (total == 0) {
+        fl_message("No matches found");
+        return;
+    }
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Replace %d occurrences?", total);
+    if (fl_choice("%s", "Cancel", "OK", NULL, msg) != 1) return;
+    if (current_folder[0])
+        replace_in_folder(current_folder, find, repl);
+    else
+        replace_in_file(current_file, find, repl);
+    int first_pos = -1;
+    highlight_in_buffer(repl, &first_pos);
+    if (first_pos >= 0) {
+        buffer->select(first_pos, first_pos + strlen(repl));
+        editor->insert_position(first_pos);
+        int line = buffer->count_lines(0, first_pos);
+        int lines_vis = editor->h() / (editor->textsize() + 4);
+        int top = line - lines_vis/2;
+        if (top < 0) top = 0;
+        editor->scroll(top, 0);
+        editor->show_insert_position();
+    }
+    fl_message("Replace complete");
+}
+
 int main(int argc, char **argv) {
     Fl::get_system_colors();
     // Ensure the editor uses the system's monospace font family
@@ -591,6 +780,8 @@ int main(int argc, char **argv) {
     menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
     menu->add("&View/Dark Theme", 0, theme_dark_cb);
     menu->add("&View/Light Theme", 0, theme_light_cb);
+    menu->add("&Find/Find...", FL_COMMAND + 'f', find_cb);
+    menu->add("&Find/Replace...", FL_COMMAND + 'h', replace_cb);
 
     const int status_h = 20;
     font_size = load_font_size();
