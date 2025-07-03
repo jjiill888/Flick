@@ -90,21 +90,49 @@ void load_last_folder_if_any() {
     }
 }
 
+void refresh_tree_item(Fl_Tree_Item* it) {
+    if (!it) return;
+    char rel[FL_PATH_MAX];
+    file_tree->item_pathname(rel, sizeof(rel), it);
+    const char* root_lbl = file_tree->root()->label();
+    if (root_lbl && *root_lbl) {
+        size_t len = strlen(root_lbl);
+        if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
+            memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+    }
+    char abs[FL_PATH_MAX * 2];
+    snprintf(abs, sizeof(abs), "%s/%s", current_folder, rel);
+    while (it->children()) {
+        file_tree->remove(it->child(0));
+    }
+    add_folder_items(abs, rel);
+    it->open();
+}
+
 void tree_cb(Fl_Widget* w, void*) {
     Fl_Tree* tr = static_cast<Fl_Tree*>(w);
     Fl_Tree_Item* it = tr->callback_item();
     if (!it) return;
-    if (tr->callback_reason() == FL_TREE_REASON_SELECTED && !it->has_children()) {
-        char rel[FL_PATH_MAX];
-        tr->item_pathname(rel, sizeof(rel), it);
-        const char* root_lbl = file_tree->root()->label();
-        if (root_lbl && *root_lbl) {
-            size_t len = strlen(root_lbl);
-            if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
-                memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+    if (tr->callback_reason() == FL_TREE_REASON_SELECTED) {
+        if (it->has_children()) {
+            int bx = file_tree->x() + file_tree->w() - item_refresh_btn->w() - 2;
+            int by = Fl::event_y() - item_refresh_btn->h()/2;
+            item_refresh_btn->position(bx, by);
+            item_refresh_btn->callback(refresh_subdir_cb, it);
+            item_refresh_btn->show();
+        } else {
+            item_refresh_btn->hide();
+            char rel[FL_PATH_MAX];
+            tr->item_pathname(rel, sizeof(rel), it);
+            const char* root_lbl = file_tree->root()->label();
+            if (root_lbl && *root_lbl) {
+                size_t len = strlen(root_lbl);
+                if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
+                    memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+            }
+            char path[FL_PATH_MAX * 2];
+            snprintf(path, sizeof(path), "%s/%s", current_folder, rel);
+            load_file(path);
         }
-        char path[FL_PATH_MAX * 2];
-        snprintf(path, sizeof(path), "%s/%s", current_folder, rel);
-        load_file(path);
-    }
+     }
 }

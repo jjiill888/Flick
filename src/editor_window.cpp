@@ -20,6 +20,7 @@ Fl_Box          *status_left = nullptr;
 Fl_Box          *status_right = nullptr;
 Fl_Box          *tree_resizer = nullptr;
 Fl_Button       *refresh_button = nullptr;
+Fl_Button       *item_refresh_btn = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
@@ -50,6 +51,8 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
         status_right->size(W - W/2, status_h);
         if (refresh_button)
             refresh_button->position(2, menu->h() + 2);
+        if (item_refresh_btn)
+            item_refresh_btn->hide();
     }
 }
 
@@ -122,6 +125,9 @@ int run_editor(int argc,char** argv){
     file_tree = new Fl_Tree(0,25,tree_width,win->h()-25-status_h);
     file_tree->callback(tree_cb);
     file_tree->showroot(false);
+    item_refresh_btn = new Fl_Button(0,0,18,18, "\u21bb");
+    item_refresh_btn->tooltip("Refresh This Folder");
+    item_refresh_btn->hide();
     refresh_button = new Fl_Button(2, 27, 18, 18, "\u21bb");
     refresh_button->tooltip("Refresh Folder");
     refresh_button->callback(refresh_folder_cb);
