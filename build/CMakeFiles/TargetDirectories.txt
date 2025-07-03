@@ -1,0 +1,3 @@
+/home/eric/Desktop/Let-s-code/build/CMakeFiles/lets_code.dir
+/home/eric/Desktop/Let-s-code/build/CMakeFiles/edit_cache.dir
+/home/eric/Desktop/Let-s-code/build/CMakeFiles/rebuild_cache.dir
