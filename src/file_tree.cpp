@@ -1,9 +1,12 @@
 #include "file_tree.hpp"
 #include "utils.hpp"
+#include <FL/filename.H>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdio>
+
+static char root_label_buf[FL_PATH_MAX];
 
 static void add_folder_items(const char* abs, const char* rel) {
     DIR* d = opendir(abs);
@@ -35,12 +38,43 @@ static void collapse_first_level() {
 }
 
 void load_folder(const char* folder) {
+    // 保存当前文件夹路径
     strncpy(current_folder, folder, sizeof(current_folder));
+    current_folder[sizeof(current_folder) - 1] = '\0';
+
+    // ✅ 提前声明 len
+    size_t len = strlen(current_folder);
+    while (len > 1 && (current_folder[len - 1] == '/' || current_folder[len - 1] == '\\')) {
+        current_folder[len - 1] = '\0';
+        --len;
+    }
+
+    // 清空旧树结构并启用根节点显示
     file_tree->clear();
-    file_tree->root_label("");
-    file_tree->showroot(false);
+    file_tree->showroot(true);
+
+    // 提取文件夹名作为根节点 label
+    const char* base = fl_filename_name(current_folder);
+    strncpy(root_label_buf, base ? base : current_folder, sizeof(root_label_buf));
+    root_label_buf[sizeof(root_label_buf) - 1] = '\0';
+
+    // 设置 root label（逻辑路径）
+    file_tree->root_label(root_label_buf);
+
+    // 加载文件夹内容
     add_folder_items(folder, "");
+
+    // ✅ 强制设置根节点 label（解决显示为 "ROOT" 的问题）
+    Fl_Tree_Item* root_item = file_tree->root();
+    if (root_item) {
+        root_item->label(root_label_buf);
+        root_item->open();  // 可选：默认展开根节点
+    }
+
+    // 折叠一级目录
     collapse_first_level();
+
+    // 保存上次打开的文件夹路径
     save_last_folder();
 }
 
