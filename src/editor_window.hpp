@@ -6,6 +6,7 @@
 #include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Tree.H>
 #include <FL/Fl_Box.H>
+#include <FL/Fl_Button.H>
 #include <FL/Fl_Text_Buffer.H>
 #include <ctime>
 

@@ -3,6 +3,7 @@
 #include "file_tree.hpp"
 #include "editor_window.hpp"
 #include <FL/Fl_Scrollbar.H>
+#include <FL/Fl_Button.H>
 
 Fl_Double_Window *win = nullptr;
 Fl_Menu_Bar    *menu = nullptr;
@@ -18,6 +19,7 @@ char current_folder[FL_PATH_MAX] = "";
 Fl_Box          *status_left = nullptr;
 Fl_Box          *status_right = nullptr;
 Fl_Box          *tree_resizer = nullptr;
+Fl_Button       *refresh_button = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
@@ -46,6 +48,8 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
         status_left->size(W/2, status_h);
         status_right->position(W/2, H - status_h);
         status_right->size(W - W/2, status_h);
+        if (refresh_button)
+            refresh_button->position(2, menu->h() + 2);
     }
 }
 
@@ -118,6 +122,9 @@ int run_editor(int argc,char** argv){
     file_tree = new Fl_Tree(0,25,tree_width,win->h()-25-status_h);
     file_tree->callback(tree_cb);
     file_tree->showroot(false);
+    refresh_button = new Fl_Button(2, 27, 18, 18, "\u21bb");
+    refresh_button->tooltip("Refresh Folder");
+    refresh_button->callback(refresh_folder_cb);
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
     editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
                                 win->w() - tree_width - tree_resizer->w(),
