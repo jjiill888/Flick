@@ -70,4 +70,3 @@ extern const int style_table_size;
 
 
 
-

@@ -3,7 +3,6 @@
 #include "file_tree.hpp"
 #include "editor_window.hpp"
 #include <FL/Fl_Scrollbar.H>
-#include <FL/Fl_Button.H>
 
 Fl_Double_Window *win = nullptr;
 Fl_Menu_Bar    *menu = nullptr;
@@ -19,12 +18,22 @@ char current_folder[FL_PATH_MAX] = "";
 Fl_Box          *status_left = nullptr;
 Fl_Box          *status_right = nullptr;
 Fl_Box          *tree_resizer = nullptr;
-Fl_Button       *item_refresh_btn = nullptr;
-Fl_Button       *item_new_file_btn = nullptr;
-Fl_Button       *item_new_folder_btn = nullptr;
+Fl_Menu_Button *tree_context_menu = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
+
+static void tree_new_file_cb(Fl_Widget* w, void*) {
+    new_file_cb(w, tree_context_menu->user_data());
+}
+
+static void tree_new_folder_cb(Fl_Widget* w, void*) {
+    new_folder_cb(w, tree_context_menu->user_data());
+}
+
+static void tree_refresh_cb(Fl_Widget* w, void*) {
+    refresh_subdir_cb(w, tree_context_menu->user_data());
+}
 
 EditorWindow::EditorWindow(int W,int H,const char* L)
     : Fl_Double_Window(W,H,L) {}
@@ -50,19 +59,6 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
         status_left->size(W/2, status_h);
         status_right->position(W/2, H - status_h);
         status_right->size(W - W/2, status_h);
-        if (item_refresh_btn && item_new_file_btn && item_new_folder_btn && file_tree) {
-            int bx = file_tree->x() + file_tree->w() - item_refresh_btn->w() -
-                     item_new_file_btn->w() - item_new_folder_btn->w() - 6;
-            int by = item_refresh_btn->y();
-            item_new_folder_btn->position(bx, by);
-            item_new_folder_btn->show();
-            bx += item_new_folder_btn->w() + 2;
-            item_new_file_btn->position(bx, by);
-            item_new_file_btn->show();
-            bx += item_new_file_btn->w() + 2;
-            item_refresh_btn->position(bx, by);
-            item_refresh_btn->show();
-        }
     }
 }
 
@@ -82,6 +78,19 @@ int TreeResizer::handle(int e) {
         return 1;
     }
     return Fl_Box::handle(e);
+}
+
+int My_Tree::handle(int e) {
+    if (e == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE && tree_context_menu) {
+        Fl_Tree_Item* it = item_clicked();
+        if (it && it->has_children()) {
+            tree_context_menu->user_data(it);
+            tree_context_menu->position(Fl::event_x(), Fl::event_y());
+            tree_context_menu->popup();
+            return 1;
+        }
+    }
+    return Fl_Tree::handle(e);
 }
 
 int My_Text_Editor::handle(int e) {
@@ -131,26 +140,14 @@ int run_editor(int argc,char** argv){
 
     const int status_h = 20;
     font_size = load_font_size();
-    file_tree = new Fl_Tree(0,25,tree_width,win->h()-25-status_h);
+    file_tree = new My_Tree(0,25,tree_width,win->h()-25-status_h);
     file_tree->callback(tree_cb);
     file_tree->showroot(false);
-    item_refresh_btn = new Fl_Button(0,0,18,18, "\u21bb");
-    item_refresh_btn->tooltip("Refresh This Folder");
-    item_new_file_btn = new Fl_Button(0,0,18,18, "+F");
-    item_new_file_btn->tooltip("New File");
-    item_new_folder_btn = new Fl_Button(0,0,18,18, "+D");
-    item_new_folder_btn->tooltip("New Folder");
-    int bx = file_tree->x() + file_tree->w() - item_refresh_btn->w() -
-             item_new_file_btn->w() - item_new_folder_btn->w() - 6;
-    int by = file_tree->y() + 2;
-    item_new_folder_btn->position(bx, by);
-    item_new_folder_btn->show();
-    bx += item_new_folder_btn->w() + 2;
-    item_new_file_btn->position(bx, by);
-    item_new_file_btn->show();
-    bx += item_new_file_btn->w() + 2;
-    item_refresh_btn->position(bx, by);
-    item_refresh_btn->show();
+    tree_context_menu = new Fl_Menu_Button(0,0,0,0);
+    tree_context_menu->hide();
+    tree_context_menu->add("New File", 0, tree_new_file_cb);
+    tree_context_menu->add("New Folder", 0, tree_new_folder_cb);
+    tree_context_menu->add("Refresh", 0, tree_refresh_cb);
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
     editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
                                 win->w() - tree_width - tree_resizer->w(),

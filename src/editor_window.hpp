@@ -6,7 +6,6 @@
 #include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Tree.H>
 #include <FL/Fl_Box.H>
-#include <FL/Fl_Button.H>
 #include <FL/Fl_Text_Buffer.H>
 #include <ctime>
 
@@ -15,6 +14,12 @@ enum Theme { THEME_DARK, THEME_LIGHT };
 class My_Text_Editor : public Fl_Text_Editor {
 public:
     using Fl_Text_Editor::Fl_Text_Editor;
+    int handle(int e) override;
+};
+
+class My_Tree : public Fl_Tree {
+public:
+    using Fl_Tree::Fl_Tree;
     int handle(int e) override;
 };
 
