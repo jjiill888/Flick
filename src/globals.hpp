@@ -16,7 +16,6 @@ extern char current_folder[FL_PATH_MAX];
 extern Fl_Box* status_left;
 extern Fl_Box* status_right;
 extern Fl_Box* tree_resizer;
-extern Fl_Button* refresh_button;
 extern Fl_Button* item_refresh_btn;
 extern time_t last_save_time;
 extern int tree_width;

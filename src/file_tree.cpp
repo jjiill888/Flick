@@ -92,16 +92,21 @@ void load_last_folder_if_any() {
 
 void refresh_tree_item(Fl_Tree_Item* it) {
     if (!it) return;
-    char rel[FL_PATH_MAX];
-    file_tree->item_pathname(rel, sizeof(rel), it);
-    const char* root_lbl = file_tree->root()->label();
-    if (root_lbl && *root_lbl) {
-        size_t len = strlen(root_lbl);
-        if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
-            memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+    char rel[FL_PATH_MAX] = "";
+    if (it != file_tree->root()) {
+        file_tree->item_pathname(rel, sizeof(rel), it);
+        const char* root_lbl = file_tree->root()->label();
+        if (root_lbl && *root_lbl) {
+            size_t len = strlen(root_lbl);
+            if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
+                memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+        }
     }
     char abs[FL_PATH_MAX * 2];
-    snprintf(abs, sizeof(abs), "%s/%s", current_folder, rel);
+    if (*rel)
+        snprintf(abs, sizeof(abs), "%s/%s", current_folder, rel);
+    else
+        snprintf(abs, sizeof(abs), "%s", current_folder);
     while (it->children()) {
         file_tree->remove(it->child(0));
     }

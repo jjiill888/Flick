@@ -19,7 +19,6 @@ char current_folder[FL_PATH_MAX] = "";
 Fl_Box          *status_left = nullptr;
 Fl_Box          *status_right = nullptr;
 Fl_Box          *tree_resizer = nullptr;
-Fl_Button       *refresh_button = nullptr;
 Fl_Button       *item_refresh_btn = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
@@ -49,8 +48,6 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
         status_left->size(W/2, status_h);
         status_right->position(W/2, H - status_h);
         status_right->size(W - W/2, status_h);
-        if (refresh_button)
-            refresh_button->position(2, menu->h() + 2);
         if (item_refresh_btn)
             item_refresh_btn->hide();
     }
@@ -112,7 +109,6 @@ int run_editor(int argc,char** argv){
     menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
     menu->add("&File/Open", FL_COMMAND + 'o', open_cb);
     menu->add("&File/Open Folder", 0, open_folder_cb);
-    menu->add("&File/Refresh Folder", 0, refresh_folder_cb);
     menu->add("&File/Save", FL_COMMAND + 's', save_cb);
     menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
     menu->add("&View/Dark Theme", 0, theme_dark_cb);
@@ -128,9 +124,6 @@ int run_editor(int argc,char** argv){
     item_refresh_btn = new Fl_Button(0,0,18,18, "\u21bb");
     item_refresh_btn->tooltip("Refresh This Folder");
     item_refresh_btn->hide();
-    refresh_button = new Fl_Button(2, 27, 18, 18, "\u21bb");
-    refresh_button->tooltip("Refresh Folder");
-    refresh_button->callback(refresh_folder_cb);
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
     editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
                                 win->w() - tree_width - tree_resizer->w(),
