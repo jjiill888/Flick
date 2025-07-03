@@ -105,6 +105,7 @@ int run_editor(int argc,char** argv){
     menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
     menu->add("&File/Open", FL_COMMAND + 'o', open_cb);
     menu->add("&File/Open Folder", 0, open_folder_cb);
+    menu->add("&File/Refresh Folder", 0, refresh_folder_cb);
     menu->add("&File/Save", FL_COMMAND + 's', save_cb);
     menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
     menu->add("&View/Dark Theme", 0, theme_dark_cb);

@@ -120,6 +120,7 @@ void style_init() {
     style_buffer->text(style);
     delete[] style;
     free(text);
+    update_linenumber_width();
 }
 
 const char* font_size_path() {
@@ -148,6 +149,21 @@ int load_font_size() {
     return sz;
 }
 
+void update_linenumber_width() {
+    if (!editor || !buffer) return;
+
+    int lines = buffer->count_lines(0, buffer->length()) + 1;
+    int digits = 1;
+    for (int temp = lines; temp >= 10; temp /= 10) digits++;
+
+    fl_font(editor->textfont(), editor->textsize());
+    int char_width = fl_width('0');
+    int width = digits * char_width + 6;  // 可调节 padding
+    if (width < 20) width = 20;
+
+    editor->linenumber_width(width);
+}
+
 void set_font_size(int sz) {
     font_size = sz;
     if (editor) {
@@ -157,7 +173,10 @@ void set_font_size(int sz) {
         style_table[i].size = sz;
     }
     save_font_size(sz);
-    if (editor) editor->damage(FL_DAMAGE_ALL);
+    if (editor) {
+        editor->damage(FL_DAMAGE_ALL);
+        update_linenumber_width();
+    }
 }
 
 const char* last_file_path() {
@@ -245,6 +264,7 @@ void changed_cb(int, int, int, int, const char*, void*) {
     text_changed = true;
     update_title();
     style_init();
+    update_linenumber_width();
     update_status();
 }
 
@@ -288,6 +308,11 @@ void open_folder_cb(Fl_Widget*, void*) {
     fc.title("Open Folder...");
     fc.type(Fl_Native_File_Chooser::BROWSE_DIRECTORY);
     if (fc.show() == 0) load_folder(fc.filename());
+}
+
+void refresh_folder_cb(Fl_Widget*, void*) {
+    if (current_folder[0])
+        load_folder(current_folder);
 }
 
 void save_to(const char *file) {

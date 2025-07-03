@@ -5,6 +5,7 @@ void new_cb(Fl_Widget*, void*);
 void open_cb(Fl_Widget*, void*);
 void save_cb(Fl_Widget*, void*);
 void open_folder_cb(Fl_Widget*, void*);
+void refresh_folder_cb(Fl_Widget*, void*);
 void quit_cb(Fl_Widget*, void*);
 void find_cb(Fl_Widget*, void*);
 void replace_cb(Fl_Widget*, void*);
@@ -29,6 +30,41 @@ void cut_cb(Fl_Widget*, void*);
 void copy_cb(Fl_Widget*, void*);
 void paste_cb(Fl_Widget*, void*);
 void select_all_cb(Fl_Widget*, void*);
+void update_linenumber_width();
 void style_init();
 extern Fl_Text_Display::Style_Table_Entry style_table[];
 extern const int style_table_size;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
