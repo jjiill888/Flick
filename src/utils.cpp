@@ -320,7 +320,6 @@ void refresh_subdir_cb(Fl_Widget*, void* data) {
     if (!it || !current_folder[0]) return;
 
     refresh_tree_item(it);
-    item_refresh_btn->hide();
 }
 
 void save_to(const char *file) {

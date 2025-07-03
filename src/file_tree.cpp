@@ -21,8 +21,11 @@ static void add_folder_items(const char* abs, const char* rel) {
         else snprintf(relpath, sizeof(relpath), "%s", e->d_name);
         struct stat st;
         if (stat(abspath, &st) == 0) {
-            file_tree->add(relpath);
-            if (S_ISDIR(st.st_mode)) add_folder_items(abspath, relpath);
+            Fl_Tree_Item* item = file_tree->add(relpath);
+            if (S_ISDIR(st.st_mode)) {
+                add_folder_items(abspath, relpath);
+                if (item) item->close();
+            }
         }
     }
     closedir(d);
@@ -107,11 +110,15 @@ void refresh_tree_item(Fl_Tree_Item* it) {
         snprintf(abs, sizeof(abs), "%s/%s", current_folder, rel);
     else
         snprintf(abs, sizeof(abs), "%s", current_folder);
+    bool was_open = it->is_open();
     while (it->children()) {
         file_tree->remove(it->child(0));
     }
     add_folder_items(abs, rel);
-    it->open();
+    if (was_open)
+        it->open();
+    else
+        it->close();
 }
 
 void tree_cb(Fl_Widget* w, void*) {
@@ -126,7 +133,6 @@ void tree_cb(Fl_Widget* w, void*) {
             item_refresh_btn->callback(refresh_subdir_cb, it);
             item_refresh_btn->show();
         } else {
-            item_refresh_btn->hide();
             char rel[FL_PATH_MAX];
             tr->item_pathname(rel, sizeof(rel), it);
             const char* root_lbl = file_tree->root()->label();

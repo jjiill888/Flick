@@ -48,8 +48,11 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
         status_left->size(W/2, status_h);
         status_right->position(W/2, H - status_h);
         status_right->size(W - W/2, status_h);
-        if (item_refresh_btn)
-            item_refresh_btn->hide();
+        if (item_refresh_btn && file_tree) {
+            int bx = file_tree->x() + file_tree->w() - item_refresh_btn->w() - 2;
+            item_refresh_btn->position(bx, item_refresh_btn->y());
+            item_refresh_btn->show();
+        }
     }
 }
 
@@ -123,7 +126,9 @@ int run_editor(int argc,char** argv){
     file_tree->showroot(false);
     item_refresh_btn = new Fl_Button(0,0,18,18, "\u21bb");
     item_refresh_btn->tooltip("Refresh This Folder");
-    item_refresh_btn->hide();
+    int bx = file_tree->x() + file_tree->w() - item_refresh_btn->w() - 2;
+    item_refresh_btn->position(bx, file_tree->y() + 2);
+    item_refresh_btn->show();
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
     editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
                                 win->w() - tree_width - tree_resizer->w(),
