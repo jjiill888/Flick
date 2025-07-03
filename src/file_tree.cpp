@@ -127,9 +127,18 @@ void tree_cb(Fl_Widget* w, void*) {
     if (!it) return;
     if (tr->callback_reason() == FL_TREE_REASON_SELECTED) {
         if (it->has_children()) {
-            int bx = file_tree->x() + file_tree->w() - item_refresh_btn->w() - 2;
+            int bx_refresh = file_tree->x() + file_tree->w() - item_refresh_btn->w() -
+                             item_new_file_btn->w() - item_new_folder_btn->w() - 6;
             int by = Fl::event_y() - item_refresh_btn->h()/2;
-            item_refresh_btn->position(bx, by);
+            item_new_folder_btn->position(bx_refresh, by);
+            item_new_folder_btn->callback(new_folder_cb, it);
+            item_new_folder_btn->show();
+            bx_refresh += item_new_folder_btn->w() + 2;
+            item_new_file_btn->position(bx_refresh, by);
+            item_new_file_btn->callback(new_file_cb, it);
+            item_new_file_btn->show();
+            bx_refresh += item_new_file_btn->w() + 2;
+            item_refresh_btn->position(bx_refresh, by);
             item_refresh_btn->callback(refresh_subdir_cb, it);
             item_refresh_btn->show();
         } else {
@@ -142,8 +151,11 @@ void tree_cb(Fl_Widget* w, void*) {
                     memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
             }
             char path[FL_PATH_MAX * 2];
-            snprintf(path, sizeof(path), "%s/%s", current_folder, rel);
-            load_file(path);
+            if (snprintf(path, sizeof(path), "%s/%s", current_folder, rel) < (int)sizeof(path))
+                load_file(path);
+            item_new_folder_btn->hide();
+            item_new_file_btn->hide();
+            item_refresh_btn->hide();
         }
      }
 }

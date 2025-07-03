@@ -322,6 +322,60 @@ void refresh_subdir_cb(Fl_Widget*, void* data) {
     refresh_tree_item(it);
 }
 
+static void item_abs_path(Fl_Tree_Item* it, char* out, size_t sz) {
+    char rel[FL_PATH_MAX] = "";
+    if (it != file_tree->root()) {
+        file_tree->item_pathname(rel, sizeof(rel), it);
+        const char* root_lbl = file_tree->root()->label();
+        if (root_lbl && *root_lbl) {
+            size_t len = strlen(root_lbl);
+            if (!strncmp(rel, root_lbl, len) && rel[len] == '/')
+                memmove(rel, rel + len + 1, strlen(rel + len + 1) + 1);
+        }
+    }
+    if (*rel)
+        snprintf(out, sz, "%s/%s", current_folder, rel);
+    else
+        snprintf(out, sz, "%s", current_folder);
+}
+
+void new_file_cb(Fl_Widget*, void* data) {
+    Fl_Tree_Item* it = static_cast<Fl_Tree_Item*>(data);
+    if (!it || !current_folder[0]) return;
+    const char* name = fl_input("File name:", "");
+    if (!name || !*name) return;
+    char dir[FL_PATH_MAX * 2];
+    item_abs_path(it, dir, sizeof(dir));
+    char path[FL_PATH_MAX * 2];
+    if (snprintf(path, sizeof(path), "%s/%s", dir, name) >= (int)sizeof(path)) {
+        fl_alert("Path too long");
+        return;
+    }
+    FILE* fp = fopen(path, "wb");
+    if (fp) fclose(fp);
+    refresh_tree_item(it);
+}
+
+void new_folder_cb(Fl_Widget*, void* data) {
+    Fl_Tree_Item* it = static_cast<Fl_Tree_Item*>(data);
+    if (!it || !current_folder[0]) return;
+    const char* name = fl_input("Folder name:", "");
+    if (!name || !*name) return;
+    char dir[FL_PATH_MAX * 2];
+    item_abs_path(it, dir, sizeof(dir));
+    char path[FL_PATH_MAX * 2];
+    if (snprintf(path, sizeof(path), "%s/%s", dir, name) >= (int)sizeof(path)) {
+        fl_alert("Path too long");
+        return;
+    }
+#ifdef _WIN32
+    mkdir(path);
+#else
+    mkdir(path, 0755);
+#endif
+    refresh_tree_item(it);
+}
+
 void save_to(const char *file) {
     if (buffer->savefile(file) == 0) {
         strncpy(current_file, file, sizeof(current_file));

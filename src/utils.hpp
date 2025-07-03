@@ -7,6 +7,8 @@ void save_cb(Fl_Widget*, void*);
 void open_folder_cb(Fl_Widget*, void*);
 void refresh_folder_cb(Fl_Widget*, void*);
 void refresh_subdir_cb(Fl_Widget*, void*);
+void new_file_cb(Fl_Widget*, void*);
+void new_folder_cb(Fl_Widget*, void*);
 void quit_cb(Fl_Widget*, void*);
 void find_cb(Fl_Widget*, void*);
 void replace_cb(Fl_Widget*, void*);
