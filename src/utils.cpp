@@ -12,6 +12,9 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #include <string>
 
 // Style table used for syntax highlighting

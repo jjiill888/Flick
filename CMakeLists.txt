@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(FLTK REQUIRED NO_MODULE)
 
+include_directories(${FLTK_INCLUDE_DIR})
+
 add_executable(lets_code
     src/main.cpp
     src/editor_window.cpp
