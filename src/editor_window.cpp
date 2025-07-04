@@ -141,6 +141,7 @@ int run_editor(int argc,char** argv){
     menu->add("&View/Light Theme", 0, theme_light_cb);
     menu->add("&Find/Find...", FL_COMMAND + 'f', find_cb);
     menu->add("&Find/Replace...", FL_COMMAND + 'h', replace_cb);
+    menu->add("&Find/Global Search...", FL_CTRL | FL_SHIFT | 'f', global_search_cb);
 
     const int status_h = 20;
     font_size = load_font_size();

@@ -1,5 +1,6 @@
 #include "utils.hpp"
 #include "file_tree.hpp"
+#include "SearchReplace.hpp"
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
@@ -712,4 +713,33 @@ void replace_cb(Fl_Widget*, void*) {
         editor->show_insert_position();
     }
     fl_message("Replace complete");
+}
+
+void global_search_cb(Fl_Widget*, void*) {
+    if (!current_folder[0]) {
+        fl_alert("No folder opened");
+        return;
+    }
+    const char* term = fl_input("Search keyword:", "");
+    if (!term || !*term) return;
+    std::string first;
+    int total = SearchReplace::findInFolder(current_folder, term, &first);
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Found %d matches in project.", total);
+    fl_message("%s", msg);
+    if (total > 0 && !first.empty()) {
+        load_file(first.c_str());
+        int first_pos = -1;
+        highlight_in_buffer(term, &first_pos);
+        if (first_pos >= 0) {
+            buffer->select(first_pos, first_pos + strlen(term));
+            editor->insert_position(first_pos);
+            int line = buffer->count_lines(0, first_pos);
+            int lines_vis = editor->h() / (editor->textsize() + 4);
+            int top = line - lines_vis / 2;
+            if (top < 0) top = 0;
+            editor->scroll(top, 0);
+            editor->show_insert_position();
+        }
+    }
 }

@@ -13,6 +13,7 @@ void delete_cb(Fl_Widget*, void*);
 void quit_cb(Fl_Widget*, void*);
 void find_cb(Fl_Widget*, void*);
 void replace_cb(Fl_Widget*, void*);
+void global_search_cb(Fl_Widget*, void*);
 void set_font_size(int sz);
 void update_title();
 void update_status();

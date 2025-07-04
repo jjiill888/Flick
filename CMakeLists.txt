@@ -10,6 +10,7 @@ add_executable(lets_code
     src/editor_window.cpp
     src/file_tree.cpp
     src/utils.cpp
+    src/SearchReplace.cpp
 )
 
 target_link_libraries(lets_code PRIVATE fltk::fltk fltk::forms fltk::images)
