@@ -35,6 +35,10 @@ static void tree_refresh_cb(Fl_Widget* w, void*) {
     refresh_subdir_cb(w, tree_context_menu->user_data());
 }
 
+static void tree_delete_cb(Fl_Widget* w, void*) {
+    delete_cb(w, tree_context_menu->user_data());
+}
+
 EditorWindow::EditorWindow(int W,int H,const char* L)
     : Fl_Double_Window(W,H,L) {}
 
@@ -83,7 +87,7 @@ int TreeResizer::handle(int e) {
 int My_Tree::handle(int e) {
     if (e == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE && tree_context_menu) {
         Fl_Tree_Item* it = item_clicked();
-        if (it && it->has_children()) {
+        if (it) {
             tree_context_menu->user_data(it);
             tree_context_menu->position(Fl::event_x(), Fl::event_y());
             tree_context_menu->popup();
@@ -148,6 +152,7 @@ int run_editor(int argc,char** argv){
     tree_context_menu->add("New File", 0, tree_new_file_cb);
     tree_context_menu->add("New Folder", 0, tree_new_folder_cb);
     tree_context_menu->add("Refresh", 0, tree_refresh_cb);
+    tree_context_menu->add("Delete", 0, tree_delete_cb);
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
     editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
                                 win->w() - tree_width - tree_resizer->w(),

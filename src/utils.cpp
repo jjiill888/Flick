@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <string>
 
 // Style table used for syntax highlighting
@@ -322,6 +323,47 @@ void refresh_subdir_cb(Fl_Widget*, void* data) {
     refresh_tree_item(it);
 }
 
+static void item_abs_path(Fl_Tree_Item* it, char* out, size_t sz);
+
+static void remove_recursive(const char* path) {
+    struct stat st;
+    if (stat(path, &st) != 0) return;
+    if (S_ISDIR(st.st_mode)) {
+        DIR* d = opendir(path);
+        if (d) {
+            struct dirent* e;
+            while ((e = readdir(d))) {
+                if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+                char sub[FL_PATH_MAX * 2];
+                snprintf(sub, sizeof(sub), "%s/%s", path, e->d_name);
+                remove_recursive(sub);
+            }
+            closedir(d);
+        }
+#ifdef _WIN32
+        _rmdir(path);
+#else
+        rmdir(path);
+#endif
+    } else {
+        remove(path);
+    }
+}
+
+void delete_cb(Fl_Widget*, void* data) {
+    Fl_Tree_Item* it = static_cast<Fl_Tree_Item*>(data);
+    if (!it || !current_folder[0]) return;
+    char target[FL_PATH_MAX * 2];
+    item_abs_path(it, target, sizeof(target));
+    char msg[FL_PATH_MAX];
+    snprintf(msg, sizeof(msg), "Delete '%s'?", it->label());
+    if (fl_choice("%s", "Cancel", "OK", NULL, msg) != 1) return;
+    remove_recursive(target);
+    Fl_Tree_Item* parent = it->parent();
+    if (!parent) parent = file_tree->root();
+    refresh_tree_item(parent);
+}
+
 static void item_abs_path(Fl_Tree_Item* it, char* out, size_t sz) {
     char rel[FL_PATH_MAX] = "";
     if (it != file_tree->root()) {
@@ -346,6 +388,12 @@ void new_file_cb(Fl_Widget*, void* data) {
     if (!name || !*name) return;
     char dir[FL_PATH_MAX * 2];
     item_abs_path(it, dir, sizeof(dir));
+    struct stat st;
+    if (stat(dir, &st) == 0 && !S_ISDIR(st.st_mode)) {
+        char* slash = strrchr(dir, '/');
+        if (slash) *slash = '\0';
+        it = it->parent() ? it->parent() : file_tree->root();
+    }
     char path[FL_PATH_MAX * 2];
     if (snprintf(path, sizeof(path), "%s/%s", dir, name) >= (int)sizeof(path)) {
         fl_alert("Path too long");
@@ -363,6 +411,12 @@ void new_folder_cb(Fl_Widget*, void* data) {
     if (!name || !*name) return;
     char dir[FL_PATH_MAX * 2];
     item_abs_path(it, dir, sizeof(dir));
+    struct stat st;
+    if (stat(dir, &st) == 0 && !S_ISDIR(st.st_mode)) {
+        char* slash = strrchr(dir, '/');
+        if (slash) *slash = '\0';
+        it = it->parent() ? it->parent() : file_tree->root();
+    }
     char path[FL_PATH_MAX * 2];
     if (snprintf(path, sizeof(path), "%s/%s", dir, name) >= (int)sizeof(path)) {
         fl_alert("Path too long");
