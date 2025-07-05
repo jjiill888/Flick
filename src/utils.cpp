@@ -1,6 +1,8 @@
 #include "utils.hpp"
 #include "file_tree.hpp"
 #include "SearchReplace.hpp"
+#include "scrollbar_theme.hpp"
+#include <FL/Fl.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
@@ -16,6 +18,10 @@
 #include <direct.h>
 #endif
 #include <string>
+
+#if defined(FL_MAJOR_VERSION) && ((FL_MAJOR_VERSION > 1) || (FL_MAJOR_VERSION == 1 && FL_MINOR_VERSION >= 5))
+#  define HAVE_SCROLLBUTTONS 1
+#endif
 
 // Style table used for syntax highlighting
 Fl_Text_Display::Style_Table_Entry style_table[] = {
@@ -491,8 +497,22 @@ void apply_theme(Theme theme) {
             editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
             Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
             Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
-            if (hsb) hsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
-            if (vsb) vsb->color(fl_rgb_color(60,60,60), fl_rgb_color(120,120,120));
+            if (hsb) {
+                hsb->color(fl_rgb_color(50,50,50), fl_rgb_color(120,120,120));
+                hsb->box(scrollbar_track_box());
+                hsb->slider(scrollbar_thumb_box());
+#ifdef HAVE_SCROLLBUTTONS
+                hsb->scrollbuttons(false);
+#endif
+            }
+            if (vsb) {
+                vsb->color(fl_rgb_color(50,50,50), fl_rgb_color(120,120,120));
+                vsb->box(scrollbar_track_box());
+                vsb->slider(scrollbar_thumb_box());
+#ifdef HAVE_SCROLLBUTTONS
+                vsb->scrollbuttons(false);
+#endif
+            }
         }
     } else {
         Fl::background(240, 240, 240);
@@ -517,8 +537,22 @@ void apply_theme(Theme theme) {
             editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
             Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
             Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
-            if (hsb) hsb->color(fl_rgb_color(220,220,220), fl_rgb_color(200,200,200));
-            if (vsb) vsb->color(fl_rgb_color(220,220,220), fl_rgb_color(200,200,200));
+            if (hsb) {
+                hsb->color(fl_rgb_color(220,220,220), fl_rgb_color(180,180,180));
+                hsb->box(scrollbar_track_box());
+                hsb->slider(scrollbar_thumb_box());
+#ifdef HAVE_SCROLLBUTTONS
+                hsb->scrollbuttons(false);
+#endif
+            }
+            if (vsb) {
+                vsb->color(fl_rgb_color(220,220,220), fl_rgb_color(180,180,180));
+                vsb->box(scrollbar_track_box());
+                vsb->slider(scrollbar_thumb_box());
+#ifdef HAVE_SCROLLBUTTONS
+                vsb->scrollbuttons(false);
+#endif
+            }
         }
     }
     current_theme = theme;

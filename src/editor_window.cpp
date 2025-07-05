@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include "file_tree.hpp"
 #include "editor_window.hpp"
+#include "scrollbar_theme.hpp"
 #include <FL/Fl_Scrollbar.H>
 
 Fl_Double_Window *win = nullptr;
@@ -127,7 +128,7 @@ int run_editor(int argc,char** argv){
     Fl::set_font(FL_COURIER, "Monospace");
     Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75,110,175));
     Fl::scheme("gtk+");
-    Fl::scrollbar_size(16);
+    apply_scrollbar_style();
 
     win = new EditorWindow(1301,887,"Let‘s code");
     win->callback(quit_cb);

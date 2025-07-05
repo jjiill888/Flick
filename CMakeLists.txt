@@ -13,6 +13,7 @@ add_executable(lets_code
     src/file_tree.cpp
     src/utils.cpp
     src/SearchReplace.cpp
+    src/scrollbar_theme.cpp
 )
 
 target_link_libraries(lets_code PRIVATE fltk::fltk fltk::forms fltk::images)
