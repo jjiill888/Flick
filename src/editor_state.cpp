@@ -58,7 +58,6 @@ void EditorState::applyTheme(Theme theme) {
     if (!win || !editor || !status_left || !status_right) return;
     
     if (theme == THEME_DARK) {
-        // Dark theme
         win->color(fl_rgb_color(30, 30, 30));
         editor->color(fl_rgb_color(40, 40, 40));
         editor->textcolor(fl_rgb_color(220, 220, 220));
@@ -67,7 +66,6 @@ void EditorState::applyTheme(Theme theme) {
         status_right->color(fl_rgb_color(50, 50, 50));
         status_right->labelcolor(fl_rgb_color(220, 220, 220));
     } else {
-        // Light theme
         win->color(fl_rgb_color(240, 240, 240));
         editor->color(fl_rgb_color(255, 255, 255));
         editor->textcolor(fl_rgb_color(0, 0, 0));

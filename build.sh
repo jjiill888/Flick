@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Let's Code 构建脚本
-# 用法: ./build.sh [debug|release|clean]
+# Let's Code build script
+# Usage: ./build.sh [debug|release|clean|windows|install|test]
 
 set -e
 
@@ -31,35 +31,35 @@ print_error() {
 
 # 检查依赖
 check_dependencies() {
-    print_info "检查系统依赖..."
+    print_info "Checking system dependencies..."
     
     # 检查CMake
     if ! command -v cmake &> /dev/null; then
-        print_error "CMake 未安装，请先安装 CMake"
+        print_error "CMake is not installed. Please install CMake first."
         exit 1
     fi
     
     # 检查编译器
     if ! command -v g++ &> /dev/null; then
-        print_error "G++ 编译器未安装，请先安装 build-essential"
+        print_error "G++ compiler is not installed. Please install build-essential."
         exit 1
     fi
     
     # 检查FLTK
     if ! pkg-config --exists fltk; then
-        print_warning "FLTK 开发库未找到，请安装 libfltk1.3-dev"
+        print_warning "FLTK development library not found. Please install libfltk1.3-dev."
         print_info "Ubuntu/Debian: sudo apt install libfltk1.3-dev"
         print_info "CentOS/RHEL: sudo yum install fltk-devel"
     fi
     
-    print_success "依赖检查完成"
+    print_success "Dependency check complete."
 }
 
 # 清理构建目录
 clean_build() {
-    print_info "清理构建目录..."
+    print_info "Cleaning build directories..."
     rm -rf build build-debug build-win
-    print_success "清理完成"
+    print_success "Clean complete."
 }
 
 # 构建项目
@@ -68,22 +68,22 @@ build_project() {
     local build_dir=$2
     local cmake_options=$3
     
-    print_info "开始构建项目 (${build_type})..."
+    print_info "Building project (${build_type})..."
     
     # 创建构建目录
     mkdir -p $build_dir
     cd $build_dir
     
     # 配置项目
-    print_info "配置 CMake..."
+    print_info "Configuring CMake..."
     cmake .. $cmake_options
     
     # 编译项目
-    print_info "编译项目..."
+    print_info "Compiling..."
     make -j$(nproc)
     
     cd ..
-    print_success "构建完成！可执行文件位于: $build_dir/bin/lets_code"
+    print_success "Build complete! Executable is in: $build_dir/bin/lets_code"
 }
 
 # 主函数
@@ -104,9 +104,9 @@ main() {
             ;;
         "windows")
             check_dependencies
-            print_info "开始Windows交叉编译..."
+            print_info "Starting Windows cross-compilation..."
             if [ ! -f "mingw-toolchain.cmake" ]; then
-                print_error "未找到 mingw-toolchain.cmake 文件"
+                print_error "mingw-toolchain.cmake file not found."
                 exit 1
             fi
             build_project "Windows" "build-win" "-DCMAKE_TOOLCHAIN_FILE=../mingw-toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS='-static-libgcc -static-libstdc++'"
@@ -117,7 +117,7 @@ main() {
             cd build
             sudo make install
             cd ..
-            print_success "安装完成！"
+            print_success "Install complete!"
             ;;
         "test")
             check_dependencies
@@ -127,15 +127,15 @@ main() {
             cd ..
             ;;
         *)
-            echo "用法: $0 [debug|release|clean|windows|install|test]"
+            echo "Usage: $0 [debug|release|clean|windows|install|test]"
             echo ""
-            echo "选项:"
-            echo "  debug     - 调试模式构建"
-            echo "  release   - 发布模式构建 (默认)"
-            echo "  clean     - 清理构建目录"
-            echo "  windows   - Windows交叉编译"
-            echo "  install   - 构建并安装"
-            echo "  test      - 构建并运行测试"
+            echo "Options:"
+            echo "  debug     - Build in debug mode"
+            echo "  release   - Build in release mode (default)"
+            echo "  clean     - Clean build directories"
+            echo "  windows   - Cross-compile for Windows"
+            echo "  install   - Build and install"
+            echo "  test      - Build and run tests"
             exit 1
             ;;
     esac

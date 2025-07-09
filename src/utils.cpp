@@ -514,6 +514,13 @@ void apply_theme(Theme theme) {
 #endif
             }
         }
+        if (file_tree) {
+            file_tree->color(fl_rgb_color(50, 50, 50));
+            file_tree->selection_color(fl_rgb_color(80, 80, 80));
+        }
+        if (tree_resizer) {
+            tree_resizer->color(fl_rgb_color(80,80,80));
+        }
     } else {
         Fl::background(240, 240, 240);
         Fl::background2(250, 250, 250);
@@ -553,6 +560,13 @@ void apply_theme(Theme theme) {
                 vsb->scrollbuttons(false);
 #endif
             }
+        }
+        if (file_tree) {
+            file_tree->color(fl_rgb_color(250, 250, 250));
+            file_tree->selection_color(fl_rgb_color(210, 210, 210));
+        }
+        if (tree_resizer) {
+            tree_resizer->color(fl_rgb_color(200, 200, 200));
         }
     }
     current_theme = theme;

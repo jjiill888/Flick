@@ -1,6 +1,22 @@
 # Let's Code - Lightweight Code Editor
 
+**Important:** You must build and install FLTK 1.4.3 from source before building this project. Do NOT use the FLTK package from your system package manager. See instructions below.
+
 A cross-platform lightweight code editor based on FLTK, featuring a modern interface and rich functionality.
+
+## Build FLTK 1.4.3 from Source
+
+1. Download FLTK 1.4.3 source from [https://www.fltk.org/software.php](https://www.fltk.org/software.php)
+2. Extract and build FLTK:
+   ```bash
+   tar -xf fltk-1.4.3-source.tar.gz
+   cd fltk-1.4.3
+   mkdir build && cd build
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j$(nproc)
+   sudo make install
+   ```
+3. Make sure `fltk-config` and headers are available in your system path (usually `/usr/local`).
 
 ## Features
 
@@ -14,7 +30,8 @@ A cross-platform lightweight code editor based on FLTK, featuring a modern inter
 
 ## System Requirements
 
-- **Linux**: FLTK 1.4.3+, CMake 3.15+, GCC 7+
+- **FLTK**: 1.4.3 (must be built from source, see above)
+- **Linux**: CMake 3.15+, GCC 7+
 - **Windows**: MinGW-w64, CMake 3.15+
 - **macOS**: Xcode Command Line Tools, CMake 3.15+
 
@@ -46,6 +63,8 @@ pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-fltk
 # Clone the project
 git clone https://github.com/your-username/lets-code.git
 cd lets-code
+
+# Make sure FLTK 1.4.3 is built and installed from source!
 
 # Create build directory
 mkdir build && cd build
