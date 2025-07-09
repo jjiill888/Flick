@@ -1,3 +1,61 @@
-# Ignore build folder
+# 构建目录
 build/
+build-debug/
 build-win/
+bin/
+
+# 编译输出
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# CMake生成的文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 临时文件
+*.tmp
+*.temp
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 用户配置文件
+.lets_code/
+*.conf
+
+# 备份文件
+*.bak
+*.backup
+
+# 测试文件
+test_*
+*_test
+
+# 文档生成
+docs/
+html/
+latex/
+
+# 包文件
+*.tar.gz
+*.zip
+*.deb
+*.rpm
