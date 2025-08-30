@@ -2,6 +2,9 @@
 #include "file_tree.hpp"
 #include "SearchReplace.hpp"
 #include "scrollbar_theme.hpp"
+#include "editor_window.hpp"
+#include <thread>
+#include <FL/Fl_Text_Display.H>
 #include <FL/Fl.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/fl_ask.H>
@@ -122,7 +125,42 @@ static void style_parse(const char *text, char *style, int length) {
     style[length] = '\0';
 }
 
+// Add file size limit constants
+static const size_t MAX_FILE_SIZE_FOR_SYNTAX_HIGHLIGHT = 1024 * 1024; // 1MB
+static const size_t MAX_FILE_SIZE_FOR_IMMEDIATE_LOAD = 512 * 1024; // 512KB
+
 void style_init() {
+    // Check file size, delay syntax highlighting for large files
+    if (buffer && buffer->length() > MAX_FILE_SIZE_FOR_SYNTAX_HIGHLIGHT) {
+        // For large files, only set basic styles, delay detailed syntax highlighting
+        char *text = buffer->text();
+        int length = buffer->length();
+        char *style = new char[length + 1];
+        memset(style, 'A', length);
+        style_buffer->text(style);
+        delete[] style;
+        free(text);
+        update_linenumber_width();
+        
+        // Delay detailed syntax highlighting
+        Fl::add_timeout(1.0, [](void*) {
+            if (buffer && buffer->length() > 0) {
+                char *text = buffer->text();
+                int length = buffer->length();
+                char *style = new char[length + 1];
+                memset(style, 'A', length);
+                style_parse(text, style, length);
+                style_buffer->text(style);
+                delete[] style;
+                free(text);
+                if (editor) {
+                    editor->damage(FL_DAMAGE_ALL);
+                }
+            }
+        });
+        return;
+    }
+    
     char *text = buffer->text();
     int length = buffer->length();
     char *style = new char[length + 1];
@@ -169,7 +207,7 @@ void update_linenumber_width() {
 
     fl_font(editor->textfont(), editor->textsize());
     int char_width = fl_width('0');
-    int width = digits * char_width + 6;  // 可调节 padding
+    int width = digits * char_width + 6;  // Adjustable padding
     if (width < 20) width = 20;
 
     editor->linenumber_width(width);
@@ -294,16 +332,48 @@ void new_cb(Fl_Widget*, void*) {
 }
 
 void load_file(const char *file) {
-    if (buffer->loadfile(file) == 0) {
-        strncpy(current_file, file, sizeof(current_file));
-        text_changed = false;
-        update_title();
-        save_last_file();
-        style_init();
-        last_save_time = 0;
-        update_status();
+    // Check file size
+    struct stat st;
+    if (stat(file, &st) == 0 && st.st_size > MAX_FILE_SIZE_FOR_IMMEDIATE_LOAD) {
+        // Show loading progress for large files
+        if (status_left) {
+            status_left->copy_label("Loading large file...");
+            status_left->redraw();
+        }
+        
+        // Asynchronously load large files
+        std::thread([file]() {
+            if (buffer->loadfile(file) == 0) {
+                strncpy(current_file, file, sizeof(current_file));
+                text_changed = false;
+                
+                // Update UI in main thread
+                Fl::awake([](void*) {
+                    update_title();
+                    save_last_file();
+                    style_init();
+                    last_save_time = 0;
+                    update_status();
+                });
+            } else {
+                Fl::awake([](void*) {
+                    fl_alert("Cannot open file");
+                });
+            }
+        }).detach();
     } else {
-        fl_alert("Cannot open '%s'", file);
+        // Normal loading for small files
+        if (buffer->loadfile(file) == 0) {
+            strncpy(current_file, file, sizeof(current_file));
+            text_changed = false;
+            update_title();
+            save_last_file();
+            style_init();
+            last_save_time = 0;
+            update_status();
+        } else {
+            fl_alert("Cannot open '%s'", file);
+        }
     }
 }
 
@@ -576,10 +646,10 @@ void apply_theme(Theme theme) {
 void theme_light_cb(Fl_Widget*, void*) { apply_theme(THEME_LIGHT); }
 void theme_dark_cb(Fl_Widget*, void*)  { apply_theme(THEME_DARK); }
 
-void cut_cb(Fl_Widget*, void*)        { Fl_Text_Editor::kf_cut(0, editor); }
-void copy_cb(Fl_Widget*, void*)       { Fl_Text_Editor::kf_copy(0, editor); }
-void paste_cb(Fl_Widget*, void*)      { Fl_Text_Editor::kf_paste(0, editor); }
-void select_all_cb(Fl_Widget*, void*) { Fl_Text_Editor::kf_select_all(0, editor); }
+void cut_cb(Fl_Widget*, void*)        { Fl_Text_Editor::kf_cut(0, static_cast<Fl_Text_Editor*>(editor)); }
+void copy_cb(Fl_Widget*, void*)       { Fl_Text_Editor::kf_copy(0, static_cast<Fl_Text_Editor*>(editor)); }
+void paste_cb(Fl_Widget*, void*)      { Fl_Text_Editor::kf_paste(0, static_cast<Fl_Text_Editor*>(editor)); }
+void select_all_cb(Fl_Widget*, void*) { Fl_Text_Editor::kf_select_all(0, static_cast<Fl_Text_Editor*>(editor)); }
 
 static bool replace_all(std::string& data, const std::string& search,
                         const std::string& replace) {
@@ -792,5 +862,46 @@ void global_search_cb(Fl_Widget*, void*) {
             editor->scroll(top, 0);
             editor->show_insert_position();
         }
+    }
+}
+
+// Window state management functions
+const char* window_state_path() {
+    static char path[FL_PATH_MAX];
+    const char* home = getenv("HOME");
+    if (home) snprintf(path, sizeof(path), "%s/.lets_code_window_state", home);
+    else strncpy(path, ".lets_code_window_state", sizeof(path));
+    return path;
+}
+
+void save_window_state() {
+    if (!win) return;
+    
+    FILE* fp = fopen(window_state_path(), "w");
+    if (fp) {
+        fprintf(fp, "%d %d %d %d", win->x(), win->y(), win->w(), win->h());
+        fclose(fp);
+    }
+}
+
+void load_window_state() {
+    FILE* fp = fopen(window_state_path(), "r");
+    if (fp) {
+        if (fscanf(fp, "%d %d %d %d", &window_x, &window_y, &window_w, &window_h) == 4) {
+            // Validate window position and size
+            int screen_w = Fl::w();
+            int screen_h = Fl::h();
+            
+            // Ensure window is not off-screen
+            if (window_x < 0) window_x = 0;
+            if (window_y < 0) window_y = 0;
+            if (window_x + window_w > screen_w) window_x = screen_w - window_w;
+            if (window_y + window_h > screen_h) window_y = screen_h - window_h;
+            
+            // Ensure minimum window size
+            if (window_w < 800) window_w = 800;
+            if (window_h < 600) window_h = 600;
+        }
+        fclose(fp);
     }
 }

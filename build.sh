@@ -5,14 +5,14 @@
 
 set -e
 
-# 颜色定义
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 打印带颜色的消息
+# Print colored messages
 print_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -29,23 +29,23 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# 检查依赖
+# Check dependencies
 check_dependencies() {
     print_info "Checking system dependencies..."
     
-    # 检查CMake
+    # Check CMake
     if ! command -v cmake &> /dev/null; then
         print_error "CMake is not installed. Please install CMake first."
         exit 1
     fi
     
-    # 检查编译器
+    # Check compiler
     if ! command -v g++ &> /dev/null; then
         print_error "G++ compiler is not installed. Please install build-essential."
         exit 1
     fi
     
-    # 检查FLTK
+    # Check FLTK
     if ! pkg-config --exists fltk; then
         print_warning "FLTK development library not found. Please install libfltk1.3-dev."
         print_info "Ubuntu/Debian: sudo apt install libfltk1.3-dev"
@@ -55,14 +55,14 @@ check_dependencies() {
     print_success "Dependency check complete."
 }
 
-# 清理构建目录
+# Clean build directories
 clean_build() {
     print_info "Cleaning build directories..."
     rm -rf build build-debug build-win
     print_success "Clean complete."
 }
 
-# 构建项目
+# Build project
 build_project() {
     local build_type=$1
     local build_dir=$2
@@ -70,15 +70,15 @@ build_project() {
     
     print_info "Building project (${build_type})..."
     
-    # 创建构建目录
+    # Create build directory
     mkdir -p $build_dir
     cd $build_dir
     
-    # 配置项目
+    # Configure project
     print_info "Configuring CMake..."
     cmake .. $cmake_options
     
-    # 编译项目
+    # Compile project
     print_info "Compiling..."
     make -j$(nproc)
     
@@ -86,7 +86,7 @@ build_project() {
     print_success "Build complete! Executable is in: $build_dir/bin/lets_code"
 }
 
-# 主函数
+# Main function
 main() {
     local action=${1:-release}
     
@@ -141,5 +141,5 @@ main() {
     esac
 }
 
-# 运行主函数
+# Run main function
 main "$@" 

@@ -1,30 +1,54 @@
 cmake_minimum_required(VERSION 3.15)
 project(LetsCode VERSION 1.0.0 LANGUAGES CXX)
 
-# 设置C++标准
+# Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 编译选项
+# Build options
 option(BUILD_TESTS "Build tests" OFF)
 option(ENABLE_DEBUG "Enable debug mode" OFF)
+option(ENABLE_LTO "Enable Link Time Optimization" ON)
 
-# 设置编译标志
+# Set compilation flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR ENABLE_DEBUG)
     add_compile_options(-g -O0 -Wall -Wextra -Wpedantic)
     add_definitions(-DDEBUG)
 else()
-    add_compile_options(-O2 -DNDEBUG)
+    # Optimization compilation options
+    add_compile_options(-O3 -DNDEBUG -march=native -mtune=native)
+    
+    # Enable Link Time Optimization
+    if(ENABLE_LTO)
+        add_compile_options(-flto)
+        add_link_options(-flto)
+    endif()
+    
+    # Other optimization options
+    add_compile_options(-ffast-math -funroll-loops -fomit-frame-pointer)
+    
+    # Reduce binary size
+    add_compile_options(-fdata-sections -ffunction-sections)
+    add_link_options(-Wl,--gc-sections)
 endif()
 
-# 查找FLTK
+# Set linker optimizations
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # Static link standard libraries to reduce startup time
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+    
+    # Optimize symbol table
+    add_link_options(-Wl,--strip-all)
+endif()
+
+# Find FLTK
 find_package(FLTK REQUIRED NO_MODULE)
 
-# 包含目录
+# Include directories
 include_directories(${FLTK_INCLUDE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-# 源文件
+# Source files
 set(SOURCES
     src/main.cpp
     src/editor_window.cpp
@@ -35,7 +59,7 @@ set(SOURCES
     src/editor_state.cpp
 )
 
-# 头文件
+# Header files
 set(HEADERS
     src/editor_window.hpp
     src/file_tree.hpp
@@ -46,38 +70,38 @@ set(HEADERS
     src/editor_state.hpp
 )
 
-# 创建可执行文件
+# Create executable
 add_executable(lets_code ${SOURCES} ${HEADERS})
 
-# 链接库
-target_link_libraries(lets_code PRIVATE 
+# Link libraries
+target_link_libraries(lets_code PRIVATE
     fltk::fltk 
     fltk::forms 
     fltk::images
 )
 
-# 设置输出目录
+# Set output directory
 set_target_properties(lets_code PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-# 安装规则
+# Install rules
 install(TARGETS lets_code
     RUNTIME DESTINATION bin
 )
 
-# 安装资源文件
+# Install resource files
 install(FILES logo.png
     DESTINATION share/lets_code
 )
 
-# 如果启用测试
+# If tests are enabled
 if(BUILD_TESTS)
     enable_testing()
-    # 这里可以添加测试相关的配置
+    # Test-related configuration can be added here
 endif()
 
-# 打印配置信息
+# Print configuration information
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "FLTK version: ${FLTK_VERSION}")
 message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")

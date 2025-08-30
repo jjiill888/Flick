@@ -9,7 +9,7 @@
 #include <FL/Fl_Text_Buffer.H>
 #include <ctime>
 
-enum Theme { THEME_DARK, THEME_LIGHT };
+// Theme enum is now defined in globals.hpp
 
 class My_Text_Editor : public Fl_Text_Editor {
 public:
@@ -27,6 +27,7 @@ class EditorWindow : public Fl_Double_Window {
 public:
     EditorWindow(int W, int H, const char* L = 0);
     void resize(int X, int Y, int W, int H) override;
+    int handle(int e) override;
 };
 
 class TreeResizer : public Fl_Box {

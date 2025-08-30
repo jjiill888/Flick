@@ -3,7 +3,10 @@
 #include "file_tree.hpp"
 #include "editor_window.hpp"
 #include "scrollbar_theme.hpp"
+#include <FL/Fl_Text_Display.H>
 #include <FL/Fl_Scrollbar.H>
+#include <thread>
+#include <future>
 
 Fl_Double_Window *win = nullptr;
 Fl_Menu_Bar    *menu = nullptr;
@@ -23,6 +26,16 @@ Fl_Menu_Button *tree_context_menu = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
+
+// Window position and size variables
+int             window_x = 100;
+int             window_y = 100;
+int             window_w = 1301;
+int             window_h = 887;
+
+// Add lazy loading flags
+static bool file_tree_loaded = false;
+static std::future<void> file_tree_future;
 
 static void tree_new_file_cb(Fl_Widget* w, void*) {
     new_file_cb(w, tree_context_menu->user_data());
@@ -65,6 +78,27 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
         status_right->position(W/2, H - status_h);
         status_right->size(W - W/2, status_h);
     }
+}
+
+int EditorWindow::handle(int e) {
+    int ret = Fl_Double_Window::handle(e);
+    
+    // Save window state when window is moved or resized
+    if (e == FL_MOVE || e == FL_DRAG) {
+        // Update global variables
+        window_x = x();
+        window_y = y();
+        window_w = w();
+        window_h = h();
+        
+        // Save to file periodically (not on every move/resize to avoid excessive I/O)
+        static int save_counter = 0;
+        if (++save_counter % 10 == 0) {  // Save every 10th event
+            save_window_state();
+        }
+    }
+    
+    return ret;
 }
 
 TreeResizer::TreeResizer(int X,int Y,int W,int H) : Fl_Box(X,Y,W,H) {
@@ -124,13 +158,18 @@ int My_Text_Editor::handle(int e) {
 }
 
 int run_editor(int argc,char** argv){
+    // Quick initialization of basic UI
     Fl::get_system_colors();
     Fl::set_font(FL_COURIER, "Monospace");
     Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75,110,175));
     Fl::scheme("gtk+");
     apply_scrollbar_style();
 
-    win = new EditorWindow(1301,887,"Let‘s code");
+    // Load window state before creating window
+    load_window_state();
+
+    win = new EditorWindow(window_w, window_h, "Let's code");
+    win->position(window_x, window_y);
     win->callback(quit_cb);
     menu = new Fl_Menu_Bar(0,0,win->w(),25);
     menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
@@ -146,9 +185,13 @@ int run_editor(int argc,char** argv){
 
     const int status_h = 20;
     font_size = load_font_size();
+    
+    // Create file tree but don't load content immediately
     file_tree = new My_Tree(0,25,tree_width,win->h()-25-status_h);
     file_tree->callback(tree_cb);
     file_tree->showroot(false);
+    file_tree->root_label("Loading...");
+    
     tree_context_menu = new Fl_Menu_Button(0,0,0,0);
     tree_context_menu->hide();
     tree_context_menu->add("New File", 0, tree_new_file_cb);
@@ -186,7 +229,13 @@ int run_editor(int argc,char** argv){
     buffer->add_modify_callback(changed_cb, nullptr);
     style_init();
     update_status();
-    load_last_folder_if_any();
+    
+    // Asynchronously load file tree
+    file_tree_future = std::async(std::launch::async, []() {
+        load_last_folder_if_any();
+        file_tree_loaded = true;
+    });
+    
     editor->highlight_data(style_buffer, style_table,
                            style_table_size,
                            'A', nullptr, nullptr);
@@ -195,13 +244,29 @@ int run_editor(int argc,char** argv){
     win->end();
     win->show(argc, argv);
 
+    // Quick file loading (if command line arguments provided)
     if (argc > 1) {
         load_file(argv[1]);
     } else {
-        load_last_file_if_any();
-        if (!current_file[0]) update_title();
-        update_status();
+        // Delay loading last file to avoid blocking UI
+        Fl::add_timeout(0.1, [](void*) {
+            load_last_file_if_any();
+            if (!current_file[0]) update_title();
+            update_status();
+        });
     }
+
+    // Add callback for file tree loading completion
+    Fl::add_timeout(0.05, [](void*) {
+        if (file_tree_loaded && file_tree_future.valid()) {
+            file_tree_future.wait();
+            if (file_tree) {
+                file_tree->redraw();
+            }
+        } else {
+            Fl::repeat_timeout(0.05, nullptr);
+        }
+    });
 
     return Fl::run();
 }

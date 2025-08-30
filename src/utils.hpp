@@ -1,5 +1,6 @@
 #pragma once
 #include "globals.hpp"
+#include <FL/Fl_Text_Display.H>
 
 void new_cb(Fl_Widget*, void*);
 void open_cb(Fl_Widget*, void*);
@@ -37,6 +38,7 @@ void paste_cb(Fl_Widget*, void*);
 void select_all_cb(Fl_Widget*, void*);
 void update_linenumber_width();
 void style_init();
+// Style table declarations - defined in utils.cpp
 extern Fl_Text_Display::Style_Table_Entry style_table[];
 extern const int style_table_size;
 
