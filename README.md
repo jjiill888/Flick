@@ -27,6 +27,7 @@ A cross-platform lightweight code editor based on FLTK, featuring a modern inter
 -  **Keyboard Shortcuts** - Boost coding efficiency
 -  **Cross-Platform** - Supports Linux, Windows, and macOS
 -  **Lightweight** - Fast startup, low resource usage
+-  **Multi-tab** - Add basic multi-tab support below toolbar
 
 ## System Requirements
 

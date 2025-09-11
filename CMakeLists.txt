@@ -57,6 +57,7 @@ set(SOURCES
     src/SearchReplace.cpp
     src/scrollbar_theme.cpp
     src/editor_state.cpp
+    src/tab_bar.cpp
 )
 
 # Header files
@@ -68,6 +69,7 @@ set(HEADERS
     src/SearchReplace.hpp
     src/scrollbar_theme.hpp
     src/editor_state.hpp
+    src/tab_bar.hpp
 )
 
 # Create executable

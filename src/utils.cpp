@@ -3,6 +3,7 @@
 #include "SearchReplace.hpp"
 #include "scrollbar_theme.hpp"
 #include "editor_window.hpp"
+#include "tab_bar.hpp"
 #include <thread>
 #include <FL/Fl_Text_Display.H>
 #include <FL/Fl.H>
@@ -309,8 +310,16 @@ void update_status() {
     status_right->redraw();
 }
 
+// Global flag to prevent marking tabs as modified during file loading
+static bool loading_file = false;
+
 void changed_cb(int, int, int, int, const char*, void*) {
     text_changed = true;
+    // Update tab bar modified status only if not loading a file and not switching tabs
+    if (tab_bar && current_file[0] && !loading_file && !switching_tabs) {
+        tab_bar->update_tab_modified(current_file, true);
+        // Don't update the tab buffer here - it will be updated when switching tabs
+    }
     update_title();
     style_init();
     update_linenumber_width();
@@ -343,29 +352,55 @@ void load_file(const char *file) {
         
         // Asynchronously load large files
         std::thread([file]() {
+            loading_file = true;  // Prevent marking as modified during loading
             if (buffer->loadfile(file) == 0) {
                 strncpy(current_file, file, sizeof(current_file));
                 text_changed = false;
                 
                 // Update UI in main thread
                 Fl::awake([](void*) {
+                    // Add to tab bar
+                    if (tab_bar) {
+                        tab_bar->add_tab("", current_file);
+                        // Update the tab's buffer with the loaded content
+                        Fl_Text_Buffer* tab_buffer = tab_bar->get_tab_buffer(current_file);
+                        if (tab_buffer) {
+                            tab_buffer->text(buffer->text());
+                        }
+                        // Ensure the tab is not marked as modified after loading
+                        tab_bar->update_tab_modified(current_file, false);
+                    }
                     update_title();
                     save_last_file();
                     style_init();
                     last_save_time = 0;
                     update_status();
+                    loading_file = false;  // Re-enable modification tracking
                 });
             } else {
                 Fl::awake([](void*) {
                     fl_alert("Cannot open file");
+                    loading_file = false;  // Re-enable modification tracking
                 });
             }
         }).detach();
     } else {
         // Normal loading for small files
+        loading_file = true;  // Prevent marking as modified during loading
         if (buffer->loadfile(file) == 0) {
             strncpy(current_file, file, sizeof(current_file));
             text_changed = false;
+            // Add to tab bar
+            if (tab_bar) {
+                tab_bar->add_tab("", file);
+                // Update the tab's buffer with the loaded content
+                Fl_Text_Buffer* tab_buffer = tab_bar->get_tab_buffer(file);
+                if (tab_buffer) {
+                    tab_buffer->text(buffer->text());
+                }
+                // Ensure the tab is not marked as modified after loading
+                tab_bar->update_tab_modified(file, false);
+            }
             update_title();
             save_last_file();
             style_init();
@@ -374,6 +409,7 @@ void load_file(const char *file) {
         } else {
             fl_alert("Cannot open '%s'", file);
         }
+        loading_file = false;  // Re-enable modification tracking
     }
 }
 
@@ -511,9 +547,21 @@ void new_folder_cb(Fl_Widget*, void* data) {
 }
 
 void save_to(const char *file) {
-    if (buffer->savefile(file) == 0) {
+    int result = buffer->savefile(file);
+    if (result == 0) {
         strncpy(current_file, file, sizeof(current_file));
         text_changed = false;
+        
+        // Update tab bar modified status and buffer
+        if (tab_bar) {
+            tab_bar->update_tab_modified(file, false);
+            // Update the tab's buffer with the saved content
+            Fl_Text_Buffer* tab_buffer = tab_bar->get_tab_buffer(file);
+            if (tab_buffer) {
+                tab_buffer->text(buffer->text());
+            }
+        }
+        
         update_title();
         save_last_file();
         last_save_time = std::time(nullptr);
@@ -533,6 +581,56 @@ void save_cb(Fl_Widget*, void*) {
     }
 }
 
+void close_current_tab_cb(Fl_Widget*, void*) {
+    if (current_file[0] && tab_bar) {
+        // Use the same logic as the tab close button
+        std::string filepath = std::string(current_file);
+        
+        // Check if this is the current file and has unsaved changes
+        if (text_changed) {
+            int r = fl_choice("Save changes before closing?", "Cancel", "Save", "Don't Save");
+            if (r == 0) return; // Cancel - don't close the tab
+            if (r == 1) {
+                // Save the file
+                save_cb(nullptr, nullptr);
+                // Check if save was successful
+                if (text_changed) return; // Save failed or was cancelled
+            }
+        }
+        
+        // Remove the tab from the tab bar
+        tab_bar->remove_tab(filepath);
+        
+        // Check if there are other tabs available
+        std::vector<Tab*> all_tabs = tab_bar->get_all_tabs();
+        if (!all_tabs.empty()) {
+            // Switch to the first available tab
+            Tab* first_tab = all_tabs[0];
+            std::string new_filepath = first_tab->filepath;
+            
+            // Switch to the new tab's buffer
+            Fl_Text_Buffer* tab_buffer = tab_bar->get_tab_buffer(new_filepath);
+            if (tab_buffer) {
+                buffer->text(tab_buffer->text());
+                strcpy(current_file, new_filepath.c_str());
+                
+                // Restore the modified state from the tab
+                text_changed = first_tab->is_modified;
+                
+                update_title();
+                update_status();
+            }
+        } else {
+            // No tabs left, clear the editor
+            buffer->text("");
+            current_file[0] = '\0';
+            text_changed = false;
+            update_title();
+            update_status();
+        }
+    }
+}
+
 void quit_cb(Fl_Widget*, void*) {
     if (text_changed) {
         int r = fl_choice("Save changes before quitting?", "Cancel", "Save", "Don't Save");
@@ -540,6 +638,12 @@ void quit_cb(Fl_Widget*, void*) {
         if (r == 1) save_cb(NULL, NULL);
     }
     save_last_file();
+    
+    // Save tab state before quitting
+    if (tab_bar) {
+        tab_bar->save_tab_state();
+    }
+    
     win->hide();
 }
 

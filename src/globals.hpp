@@ -14,6 +14,7 @@ class Fl_Box;
 class Fl_Text_Buffer;
 class My_Text_Editor;
 class Fl_Widget;
+class TabBar;
 
 // Theme enum declaration
 enum Theme { THEME_DARK, THEME_LIGHT };
@@ -28,12 +29,14 @@ extern My_Text_Editor  *editor;
 extern Fl_Text_Buffer  *buffer;
 extern Fl_Text_Buffer  *style_buffer;
 extern bool text_changed;
+extern bool switching_tabs;
 extern char current_file[FL_PATH_MAX];
 extern char current_folder[FL_PATH_MAX];
 extern Fl_Box          *status_left;
 extern Fl_Box          *status_right;
 extern Fl_Box          *tree_resizer;
 extern Fl_Menu_Button *tree_context_menu;
+extern TabBar          *tab_bar;
 extern time_t           last_save_time;
 extern int             tree_width;
 extern Theme           current_theme;

@@ -3,8 +3,11 @@
 #include "file_tree.hpp"
 #include "editor_window.hpp"
 #include "scrollbar_theme.hpp"
+#include "tab_bar.hpp"
 #include <FL/Fl_Text_Display.H>
 #include <FL/Fl_Scrollbar.H>
+#include <FL/Fl.H>
+#include <FL/fl_ask.H>
 #include <thread>
 #include <future>
 
@@ -17,12 +20,14 @@ My_Text_Editor  *editor = nullptr;
 Fl_Text_Buffer  *buffer = new Fl_Text_Buffer();
 Fl_Text_Buffer  *style_buffer = new Fl_Text_Buffer();
 bool text_changed = false;
+bool switching_tabs = false;
 char current_file[FL_PATH_MAX] = "";
 char current_folder[FL_PATH_MAX] = "";
 Fl_Box          *status_left = nullptr;
 Fl_Box          *status_right = nullptr;
 Fl_Box          *tree_resizer = nullptr;
 Fl_Menu_Button *tree_context_menu = nullptr;
+TabBar          *tab_bar = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
@@ -60,10 +65,20 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
     Fl_Double_Window::resize(X,Y,W,H);
     if (menu && editor && status_left && status_right) {
         const int status_h = status_left->h();
+        const int tab_h = tab_bar ? tab_bar->h() : 0;
         int tree_w = file_tree ? tree_width : 0;
         int resize_w = tree_resizer ? tree_resizer->w() : 0;
-        editor->position(tree_w + resize_w, menu->h());
-        editor->size(W - tree_w - resize_w, H - menu->h() - status_h);
+        
+        // Position tab bar only on the right side (not over file tree)
+        if (tab_bar) {
+            tab_bar->position(tree_w + resize_w, menu->h());
+            tab_bar->size(W - tree_w - resize_w, tab_h);
+        }
+        
+        // Position editor below tab bar
+        editor->position(tree_w + resize_w, menu->h() + tab_h);
+        editor->size(W - tree_w - resize_w, H - menu->h() - tab_h - status_h);
+        
         if (file_tree) {
             file_tree->position(0, menu->h());
             file_tree->size(tree_w, H - menu->h() - status_h);
@@ -133,6 +148,16 @@ int My_Tree::handle(int e) {
 }
 
 int My_Text_Editor::handle(int e) {
+    if (e == FL_KEYDOWN) {
+        if (Fl::event_key() == 's' && (Fl::event_state() & FL_CTRL)) {
+            save_cb(nullptr, nullptr);
+            return 1;
+        }
+        if (Fl::event_key() == 'w' && (Fl::event_state() & FL_CTRL)) {
+            close_current_tab_cb(nullptr, nullptr);
+            return 1;
+        }
+    }
     if (e == FL_MOUSEWHEEL && (Fl::event_state() & FL_CTRL)) {
         int dy = Fl::event_dy();
         if (dy != 0) {
@@ -172,15 +197,15 @@ int run_editor(int argc,char** argv){
     win->position(window_x, window_y);
     win->callback(quit_cb);
     menu = new Fl_Menu_Bar(0,0,win->w(),25);
-    menu->add("&File/New",  FL_COMMAND + 'n', new_cb);
-    menu->add("&File/Open", FL_COMMAND + 'o', open_cb);
+    menu->add("&File/New",  FL_CTRL + 'n', new_cb);
+    menu->add("&File/Open", FL_CTRL + 'o', open_cb);
     menu->add("&File/Open Folder", 0, open_folder_cb);
-    menu->add("&File/Save", FL_COMMAND + 's', save_cb);
-    menu->add("&File/Quit", FL_COMMAND + 'q', quit_cb);
+    menu->add("&File/Save", FL_CTRL + 's', save_cb);
+    menu->add("&File/Quit", FL_CTRL + 'q', quit_cb);
     menu->add("&View/Dark Theme", 0, theme_dark_cb);
     menu->add("&View/Light Theme", 0, theme_light_cb);
-    menu->add("&Find/Find...", FL_COMMAND + 'f', find_cb);
-    menu->add("&Find/Replace...", FL_COMMAND + 'h', replace_cb);
+    menu->add("&Find/Find...", FL_CTRL + 'f', find_cb);
+    menu->add("&Find/Replace...", FL_CTRL + 'h', replace_cb);
     menu->add("&Find/Global Search...", FL_CTRL | FL_SHIFT | 'f', global_search_cb);
 
     const int status_h = 20;
@@ -199,9 +224,84 @@ int run_editor(int argc,char** argv){
     tree_context_menu->add("Refresh", 0, tree_refresh_cb);
     tree_context_menu->add("Delete", 0, tree_delete_cb);
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
-    editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25,
+    
+    // Create tab bar on right side only (not over file tree)
+    const int tab_h = 22;
+    tab_bar = new TabBar(tree_width + tree_resizer->w(), 25,
+                         win->w() - tree_width - tree_resizer->w(), tab_h);
+    
+    // Set up tab bar callbacks
+    tab_bar->on_tab_selected = [](const std::string& filepath) {
+        // Set flag to prevent changed_cb from marking tabs as modified during switching
+        switching_tabs = true;
+        
+        // First, save current content and modified state to the current tab's buffer
+        std::string current_filepath = std::string(current_file);
+        if (!current_filepath.empty() && current_filepath != filepath) {
+            Fl_Text_Buffer* current_tab_buffer = tab_bar->get_tab_buffer(current_filepath);
+            if (current_tab_buffer) {
+                // Save the current editor content to the tab's buffer
+                current_tab_buffer->text(buffer->text());
+                // Save the current modified state to the tab
+                tab_bar->update_tab_modified(current_filepath, text_changed);
+            }
+        }
+        
+        // Switch to the new tab's buffer
+        Fl_Text_Buffer* tab_buffer = tab_bar->get_tab_buffer(filepath);
+        if (tab_buffer) {
+            buffer->text(tab_buffer->text());
+            strcpy(current_file, filepath.c_str());
+            
+            // Restore the modified state from the tab
+            std::vector<Tab*> all_tabs = tab_bar->get_all_tabs();
+            for (Tab* tab : all_tabs) {
+                if (tab->filepath == filepath) {
+                    text_changed = tab->is_modified;
+                    break;
+                }
+            }
+            
+            update_title();
+            update_status();
+        }
+        
+        // Clear the switching flag
+        switching_tabs = false;
+    };
+    
+    tab_bar->on_tab_closed = [](const std::string& filepath) {
+        // Check if this is the current file and has unsaved changes
+        if (std::string(current_file) == filepath && text_changed) {
+            int r = fl_choice("Save changes before closing?", "Cancel", "Save", "Don't Save");
+            if (r == 0) return; // Cancel - don't close the tab
+            if (r == 1) {
+                // Save the file
+                save_cb(nullptr, nullptr);
+                // Check if save was successful
+                if (text_changed) return; // Save failed or was cancelled
+            }
+        }
+        
+        // Remove the tab from the tab bar
+        tab_bar->remove_tab(filepath);
+        
+        // If this was the current file, clear the editor
+        if (std::string(current_file) == filepath) {
+            buffer->text("");
+            current_file[0] = '\0';
+            text_changed = false;
+            update_title();
+            update_status();
+        }
+    };
+    
+    // Load saved tab state
+    tab_bar->load_tab_state();
+    
+    editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25 + tab_h,
                                 win->w() - tree_width - tree_resizer->w(),
-                                win->h() - 25 - status_h);
+                                win->h() - 25 - tab_h - status_h);
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
     set_font_size(font_size);
