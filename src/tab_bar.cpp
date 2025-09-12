@@ -29,36 +29,36 @@ void TabButton::draw() {
     // Update close button position in case tab was moved
     calculate_close_button_bounds();
     
-    // Draw tab background
+    // Draw tab background - VSCode style
     Fl_Color bg_color, text_color;
     if (tab->is_active) {
-        bg_color = current_theme == THEME_DARK ? fl_rgb_color(60, 60, 60) : fl_rgb_color(255, 255, 255);
-        text_color = current_theme == THEME_DARK ? FL_WHITE : FL_BLACK;
+        bg_color = current_theme == THEME_DARK ? fl_rgb_color(30, 30, 30) : fl_rgb_color(255, 255, 255);
+        text_color = current_theme == THEME_DARK ? fl_rgb_color(212, 212, 212) : FL_BLACK;
     } else {
-        bg_color = current_theme == THEME_DARK ? fl_rgb_color(40, 40, 40) : fl_rgb_color(240, 240, 240);
-        text_color = current_theme == THEME_DARK ? fl_rgb_color(180, 180, 180) : fl_rgb_color(60, 60, 60);
+        bg_color = current_theme == THEME_DARK ? fl_rgb_color(45, 45, 45) : fl_rgb_color(240, 240, 240);
+        text_color = current_theme == THEME_DARK ? fl_rgb_color(133, 133, 133) : fl_rgb_color(60, 60, 60);
     }
     
     fl_color(bg_color);
     fl_rectf(x(), y(), w(), h());
     
-    // Draw border
-    Fl_Color border_color = current_theme == THEME_DARK ? fl_rgb_color(70, 70, 70) : fl_rgb_color(200, 200, 200);
+    // Draw border - VSCode style
+    Fl_Color border_color = current_theme == THEME_DARK ? fl_rgb_color(45, 45, 45) : fl_rgb_color(200, 200, 200);
     fl_color(border_color);
     fl_rect(x(), y(), w(), h());
     
-    // Draw close button (×)
+    // Draw close button (×) - VSCode style
     Fl_Color close_color = close_hovered ? 
         (current_theme == THEME_DARK ? fl_rgb_color(255, 100, 100) : fl_rgb_color(200, 50, 50)) :
-        (current_theme == THEME_DARK ? fl_rgb_color(150, 150, 150) : fl_rgb_color(100, 100, 100));
+        (current_theme == THEME_DARK ? fl_rgb_color(133, 133, 133) : fl_rgb_color(100, 100, 100));
     
     fl_color(close_color);
-    fl_font(FL_HELVETICA, 10);
+    fl_font(FL_HELVETICA, 11);
     fl_draw("×", close_x, close_y + 6);
     
     // Draw filename
     fl_color(text_color);
-    fl_font(FL_HELVETICA, 12);
+    fl_font(FL_HELVETICA, 13);
     
     std::string display_name = tab->filename;
     if (tab->is_modified) {
@@ -69,13 +69,9 @@ void TabButton::draw() {
     int text_x = close_x + close_size + 3;
     int text_w = x() + w() - text_x - 3;
     
-    // Calculate text width and center it
-    fl_font(FL_HELVETICA, 12);
-    int text_width = (int)fl_width(display_name.c_str());
-    int centered_x = text_x + (text_w - text_width) / 2;
-    
+    // Left-align the text (no centering calculation needed)
     fl_push_clip(text_x, y(), text_w, h());
-    fl_draw(display_name.c_str(), centered_x, y() + h()/2 + 3);
+    fl_draw(display_name.c_str(), text_x, y() + h()/2 + 3);
     fl_pop_clip();
 }
 
@@ -223,7 +219,7 @@ void TabBar::create_tab_buttons() {
     // Calculate individual tab widths based on content
     std::vector<int> tab_widths;
     int total_content_width = 0;
-    fl_font(FL_HELVETICA, 12);
+    fl_font(FL_HELVETICA, 13);
     
     for (Tab* tab : tabs) {
         std::string display_name = tab->filename;
@@ -289,7 +285,7 @@ int TabBar::calculate_tab_width() {
     
     // Calculate total width needed for all tabs based on their content
     int total_content_width = 0;
-    fl_font(FL_HELVETICA, 12);
+    fl_font(FL_HELVETICA, 13);
     
     for (Tab* tab : tabs) {
         std::string display_name = tab->filename;
@@ -357,15 +353,15 @@ int TabBar::get_tab_index_at_position(int px) {
 }
 
 void TabBar::draw() {
-    // Draw background
+    // Draw background - VSCode style
     Fl_Color bg_color = current_theme == THEME_DARK ? 
-        fl_rgb_color(30, 30, 30) : fl_rgb_color(250, 250, 250);
+        fl_rgb_color(45, 45, 45) : fl_rgb_color(250, 250, 250);
     fl_color(bg_color);
     fl_rectf(x(), y(), w(), h());
     
-    // Draw bottom border
+    // Draw bottom border - VSCode style
     Fl_Color border_color = current_theme == THEME_DARK ? 
-        fl_rgb_color(70, 70, 70) : fl_rgb_color(200, 200, 200);
+        fl_rgb_color(37, 37, 38) : fl_rgb_color(200, 200, 200);
     fl_color(border_color);
     fl_line(x(), y() + h() - 1, x() + w(), y() + h() - 1);
     

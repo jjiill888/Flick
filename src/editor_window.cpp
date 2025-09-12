@@ -185,7 +185,11 @@ int My_Text_Editor::handle(int e) {
 int run_editor(int argc,char** argv){
     // Quick initialization of basic UI
     Fl::get_system_colors();
-    Fl::set_font(FL_COURIER, "Monospace");
+    // Set all fonts to JetBrains Mono variants
+    Fl::set_font(FL_COURIER, "JetBrains Mono");
+    Fl::set_font(FL_HELVETICA, "JetBrains Mono");
+    Fl::set_font(FL_TIMES, "JetBrains Mono");
+    Fl::set_font(FL_SYMBOL, "JetBrains Mono");
     Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75,110,175));
     Fl::scheme("gtk+");
     apply_scrollbar_style();
@@ -317,12 +321,12 @@ int run_editor(int argc,char** argv){
     context_menu->add("Select All",0,select_all_cb);
     status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
     status_left->box(FL_FLAT_BOX);
-    status_left->labelsize(12);
+    status_left->labelsize(13);
     status_left->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     status_left->label("");
     status_right = new Fl_Box(win->w()/2, win->h() - status_h, win->w() - win->w()/2, status_h);
     status_right->box(FL_FLAT_BOX);
-    status_right->labelsize(12);
+    status_right->labelsize(13);
     status_right->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
     status_right->label("");
     apply_theme(current_theme);

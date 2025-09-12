@@ -1,9 +1,10 @@
 #include "scrollbar_theme.hpp"
+#include "globals.hpp"
 #include <FL/Fl.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/fl_draw.H>
 
-// Minimal VSCode-like scrollbar appearance
+// Clean modern scrollbars without arrow buttons
 #if __has_include(<FL/fl_version.h>)
 #  include <FL/fl_version.h>
 #endif

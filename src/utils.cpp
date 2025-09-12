@@ -27,15 +27,15 @@
 #  define HAVE_SCROLLBUTTONS 1
 #endif
 
-// Style table used for syntax highlighting
+// Style table used for syntax highlighting with JetBrains Mono - VSCode Dark theme colors
 Fl_Text_Display::Style_Table_Entry style_table[] = {
-    { fl_rgb_color(212,212,212), FL_COURIER,        14 }, // A - plain text
-    { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // B - line comment
-    { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // C - block comment
-    { fl_rgb_color(206,145,120), FL_COURIER,        14 }, // D - string literal
-    { fl_rgb_color( 86,156,214), FL_COURIER_BOLD,   14 }, // E - preprocessor
-    { fl_rgb_color(197,134,192), FL_COURIER_BOLD,   14 }, // F - keyword
-    { fl_rgb_color(255,255,0),   FL_COURIER,        14 }  // G - search highlight
+    { fl_rgb_color(212,212,212), FL_COURIER,        14 }, // A - plain text (JetBrains Mono Regular)
+    { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // B - line comment (JetBrains Mono Italic)
+    { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // C - block comment (JetBrains Mono Italic)
+    { fl_rgb_color(206,145,120), FL_COURIER,        14 }, // D - string literal (JetBrains Mono Regular)
+    { fl_rgb_color(197,134,192), FL_COURIER_BOLD,   14 }, // E - preprocessor (JetBrains Mono Bold)
+    { fl_rgb_color(86,156,214),  FL_COURIER_BOLD,   14 }, // F - keyword (JetBrains Mono Bold)
+    { fl_rgb_color(255,255,0),   FL_COURIER,        14 }  // G - search highlight (JetBrains Mono Regular)
 };
 const int style_table_size = sizeof(style_table) / sizeof(style_table[0]);
 
@@ -649,51 +649,66 @@ void quit_cb(Fl_Widget*, void*) {
 
 void apply_theme(Theme theme) {
     if (theme == THEME_DARK) {
-        Fl::background(50, 50, 50);
-        Fl::background2(60, 60, 60);
-        Fl::foreground(230, 230, 230);
+        // VSCode Dark theme colors
+        Fl::background(30, 30, 30);  // VSCode main background
+        Fl::background2(37, 37, 38); // VSCode secondary background
+        Fl::foreground(204, 204, 204); // VSCode text color
         if (menu) {
-            menu->color(fl_rgb_color(50, 50, 50));
-            menu->textcolor(fl_rgb_color(230, 230, 230));
-            menu->selection_color(fl_rgb_color(80, 80, 80));
+            menu->color(fl_rgb_color(45, 45, 45));  // VSCode menu bar
+            menu->textcolor(fl_rgb_color(204, 204, 204));
+            menu->selection_color(fl_rgb_color(37, 37, 38));
         }
         if (status_left && status_right) {
-            status_left->color(fl_rgb_color(50, 50, 50));
-            status_left->labelcolor(fl_rgb_color(230, 230, 230));
-            status_right->color(fl_rgb_color(50, 50, 50));
-            status_right->labelcolor(fl_rgb_color(230, 230, 230));
+            // VSCode status bar - keep it dark, not blue as requested
+            status_left->color(fl_rgb_color(37, 37, 38));
+            status_left->labelcolor(fl_rgb_color(204, 204, 204));
+            status_right->color(fl_rgb_color(37, 37, 38));
+            status_right->labelcolor(fl_rgb_color(204, 204, 204));
         }
         if (editor) {
-            editor->color(fl_rgb_color(45,45,45), FL_DARK_BLUE);
-            editor->textcolor(FL_WHITE);
-            editor->cursor_color(FL_WHITE);
-            editor->linenumber_bgcolor(fl_rgb_color(45,45,45));
-            editor->linenumber_fgcolor(fl_rgb_color(120,120,120));
+            editor->color(fl_rgb_color(30, 30, 30), FL_DARK_BLUE);  // VSCode editor background
+            editor->textcolor(fl_rgb_color(212, 212, 212));  // VSCode text color
+            editor->cursor_color(fl_rgb_color(212, 212, 212));
+            editor->linenumber_bgcolor(fl_rgb_color(30, 30, 30));
+            editor->linenumber_fgcolor(fl_rgb_color(133, 133, 133));
             Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
             Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
             if (hsb) {
-                hsb->color(fl_rgb_color(50,50,50), fl_rgb_color(120,120,120));
+                hsb->color(fl_rgb_color(30,30,30), fl_rgb_color(79,79,79));
                 hsb->box(scrollbar_track_box());
                 hsb->slider(scrollbar_thumb_box());
 #ifdef HAVE_SCROLLBUTTONS
-                hsb->scrollbuttons(false);
+                hsb->scrollbuttons(false);  // Remove arrow buttons
 #endif
             }
             if (vsb) {
-                vsb->color(fl_rgb_color(50,50,50), fl_rgb_color(120,120,120));
+                vsb->color(fl_rgb_color(30,30,30), fl_rgb_color(79,79,79));
                 vsb->box(scrollbar_track_box());
                 vsb->slider(scrollbar_thumb_box());
 #ifdef HAVE_SCROLLBUTTONS
-                vsb->scrollbuttons(false);
+                vsb->scrollbuttons(false);  // Remove arrow buttons
 #endif
             }
         }
         if (file_tree) {
-            file_tree->color(fl_rgb_color(50, 50, 50));
-            file_tree->selection_color(fl_rgb_color(80, 80, 80));
+            file_tree->color(fl_rgb_color(37, 37, 38));  // VSCode sidebar
+            file_tree->selection_color(fl_rgb_color(37, 37, 38));
+            
+            // Apply modern scrollbars to file tree and remove arrow buttons
+            for (int i = 0; i < file_tree->children(); i++) {
+                Fl_Scrollbar* sb = dynamic_cast<Fl_Scrollbar*>(file_tree->child(i));
+                if (sb) {
+                    sb->color(fl_rgb_color(37,37,38), fl_rgb_color(79,79,79));
+                    sb->box(scrollbar_track_box());
+                    sb->slider(scrollbar_thumb_box());
+#ifdef HAVE_SCROLLBUTTONS
+                    sb->scrollbuttons(false);  // Remove arrow buttons
+#endif
+                }
+            }
         }
         if (tree_resizer) {
-            tree_resizer->color(fl_rgb_color(80,80,80));
+            tree_resizer->color(fl_rgb_color(45, 45, 45));
         }
     } else {
         Fl::background(240, 240, 240);
