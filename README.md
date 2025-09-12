@@ -1,4 +1,4 @@
-# Let's Code - Lightweight Code Editor
+# Flick - Lightweight Code Editor
 
 **Important:** You must build and install FLTK 1.4.3 from source before building this project. Do NOT use the FLTK package from your system package manager. See instructions below.
 
@@ -62,8 +62,8 @@ pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-fltk
 
 ```bash
 # Clone the project
-git clone https://github.com/your-username/lets-code.git
-cd lets-code
+git clone https://github.com/your-username/Flick.git
+cd Flick
 
 # Make sure FLTK 1.4.3 is built and installed from source!
 
@@ -75,7 +75,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 
 # Run the program
-./bin/lets_code
+./bin/flick
 ```
 
 ### Debug Build
@@ -105,7 +105,7 @@ cmake .. \
 make -j$(nproc)
 ```
 
-After building, the Windows executable `lets_code.exe` will be in the `build-win/bin/` directory.
+After building, the Windows executable `flick.exe` will be in the `build-win/bin/` directory.
 
 ## Usage
 
@@ -137,7 +137,7 @@ After building, the Windows executable `lets_code.exe` will be in the `build-win
 
 ## Configuration
 
-The program creates a `.lets_code` config folder in the user's home directory, saving the following settings:
+The program creates a `.flick` config folder in the user's home directory, saving the following settings:
 
 - `font_size`: Font size
 - `theme`: Theme setting (0=dark, 1=light)
@@ -172,7 +172,7 @@ src/
 After building in debug mode, the program outputs detailed debug information:
 
 ```bash
-./bin/lets_code --debug
+./bin/flick --debug
 ```
 
 ## Contributing
@@ -210,4 +210,4 @@ If you encounter problems or have suggestions:
 
 ---
 
-**Let's Code** - Make coding easier!
+**Flick** - Make coding easier!

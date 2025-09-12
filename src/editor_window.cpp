@@ -193,7 +193,7 @@ int run_editor(int argc,char** argv){
     // Load window state before creating window
     load_window_state();
 
-    win = new EditorWindow(window_w, window_h, "Let's code");
+    win = new EditorWindow(window_w, window_h, "Flick");
     win->position(window_x, window_y);
     win->callback(quit_cb);
     menu = new Fl_Menu_Bar(0,0,win->w(),25);

@@ -13,7 +13,7 @@ EditorState& EditorState::getInstance() {
 void EditorState::updateTitle() {
     if (!win) return;
     
-    std::string title = "Let's Code";
+    std::string title = "Flick";
     if (strlen(this->current_file) > 0) {
         title += " - ";
         title += fl_filename_name(this->current_file);
@@ -84,7 +84,7 @@ void EditorState::saveSettings() {
     if (!home) return;
     
     char config_dir[FL_PATH_MAX];
-    snprintf(config_dir, sizeof(config_dir), "%s/.lets_code", home);
+    snprintf(config_dir, sizeof(config_dir), "%s/.flick", home);
     
     // Create config directory
     #ifdef _WIN32
@@ -126,7 +126,7 @@ void EditorState::loadSettings() {
     if (!home) return;
     
     char config_dir[FL_PATH_MAX];
-    snprintf(config_dir, sizeof(config_dir), "%s/.lets_code", home);
+    snprintf(config_dir, sizeof(config_dir), "%s/.flick", home);
     
     // Load font size
     char font_size_file[FL_PATH_MAX];

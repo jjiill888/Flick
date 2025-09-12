@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Let's Code build script
+# flick build script
 # Usage: ./build.sh [debug|release|clean|windows|install|test]
 
 set -e
@@ -83,7 +83,7 @@ build_project() {
     make -j$(nproc)
     
     cd ..
-    print_success "Build complete! Executable is in: $build_dir/bin/lets_code"
+    print_success "Build complete! Executable is in: $build_dir/bin/flick"
 }
 
 # Main function

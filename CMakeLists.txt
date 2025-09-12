@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(LetsCode VERSION 1.0.0 LANGUAGES CXX)
+project(flick VERSION 1.0.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -73,28 +73,28 @@ set(HEADERS
 )
 
 # Create executable
-add_executable(lets_code ${SOURCES} ${HEADERS})
+add_executable(flick ${SOURCES} ${HEADERS})
 
 # Link libraries
-target_link_libraries(lets_code PRIVATE
+target_link_libraries(flick PRIVATE
     fltk::fltk 
     fltk::forms 
     fltk::images
 )
 
 # Set output directory
-set_target_properties(lets_code PROPERTIES
+set_target_properties(flick PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
 # Install rules
-install(TARGETS lets_code
+install(TARGETS flick
     RUNTIME DESTINATION bin
 )
 
 # Install resource files
 install(FILES logo.png
-    DESTINATION share/lets_code
+    DESTINATION share/flick
 )
 
 # If tests are enabled

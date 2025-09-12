@@ -176,8 +176,8 @@ void style_init() {
 const char* font_size_path() {
     static char path[FL_PATH_MAX];
     const char* home = getenv("HOME");
-    if (home) snprintf(path, sizeof(path), "%s/.lets_code_fontsize", home);
-    else strncpy(path, ".lets_code_fontsize", sizeof(path));
+    if (home) snprintf(path, sizeof(path), "%s/.flick_fontsize", home);
+    else strncpy(path, ".flick_fontsize", sizeof(path));
     return path;
 }
 
@@ -232,8 +232,8 @@ void set_font_size(int sz) {
 const char* last_file_path() {
     static char path[FL_PATH_MAX];
     const char* home = getenv("HOME");
-    if (home) snprintf(path, sizeof(path), "%s/.lets_code_last", home);
-    else strncpy(path, ".lets_code_last", sizeof(path));
+    if (home) snprintf(path, sizeof(path), "%s/.flick_last", home);
+    else strncpy(path, ".flick_last", sizeof(path));
     return path;
 }
 
@@ -248,8 +248,8 @@ void save_last_file() {
 const char* last_folder_path() {
     static char path[FL_PATH_MAX];
     const char* home = getenv("HOME");
-    if (home) snprintf(path, sizeof(path), "%s/.lets_code_last_folder", home);
-    else strncpy(path, ".lets_code_last_folder", sizeof(path));
+    if (home) snprintf(path, sizeof(path), "%s/.flick_last_folder", home);
+    else strncpy(path, ".flick_last_folder", sizeof(path));
     return path;
 }
 
@@ -284,7 +284,7 @@ void update_title() {
     const char *name = current_file[0] ? fl_filename_name(current_file)
                                        : "Untitled";
     char title[FL_PATH_MAX + 20];
-    snprintf(title, sizeof(title), "%s%s - Let‘s code",
+    snprintf(title, sizeof(title), "%s%s - Flick",
              name, text_changed ? "*" : "");
     win->copy_label(title);
 }
@@ -973,8 +973,8 @@ void global_search_cb(Fl_Widget*, void*) {
 const char* window_state_path() {
     static char path[FL_PATH_MAX];
     const char* home = getenv("HOME");
-    if (home) snprintf(path, sizeof(path), "%s/.lets_code_window_state", home);
-    else strncpy(path, ".lets_code_window_state", sizeof(path));
+    if (home) snprintf(path, sizeof(path), "%s/.flick_window_state", home);
+    else strncpy(path, ".flick_window_state", sizeof(path));
     return path;
 }
 

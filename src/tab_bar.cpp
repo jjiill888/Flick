@@ -458,7 +458,7 @@ void TabBar::save_tab_state() {
     const char* home = getenv("HOME");
     if (!home) return;
     
-    std::string state_file = std::string(home) + "/.lets_code_tabs";
+    std::string state_file = std::string(home) + "/.flick_tabs";
     std::ofstream file(state_file);
     
     if (file.is_open()) {
@@ -481,7 +481,7 @@ void TabBar::load_tab_state() {
     const char* home = getenv("HOME");
     if (!home) return;
     
-    std::string state_file = std::string(home) + "/.lets_code_tabs";
+    std::string state_file = std::string(home) + "/.flick_tabs";
     std::ifstream file(state_file);
     
     if (!file.is_open()) return;
