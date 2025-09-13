@@ -17,3 +17,8 @@ void tree_refresh_cb(Fl_Widget* w, void* data);
 void tree_collapse_all_cb(Fl_Widget* w, void* data);
 void tree_expand_all_cb(Fl_Widget* w, void* data);
 int tree_handle_key(int key);
+
+// Tree expansion state persistence
+void save_tree_expansion_state();
+void load_tree_expansion_state();
+const char* tree_expansion_state_path();

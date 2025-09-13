@@ -278,6 +278,9 @@ void load_folder(const char* folder) {
         fclose(fp);
     }
 
+    // Load and restore the expansion state for this folder
+    load_tree_expansion_state();
+
     file_tree->redraw();
 }
 
@@ -335,6 +338,42 @@ void tree_cb(Fl_Widget* w, void*) {
     if (!it) return;
 
     if (tr->callback_reason() == FL_TREE_REASON_SELECTED) {
+        // Auto-scroll horizontally to make selected item visible
+        if (it) {
+            // Calculate item position based on tree indentation and text width
+            int icon_width = 16; // Default icon width
+            if (tr->openicon() && tr->openicon()->w() > 0) {
+                icon_width = tr->openicon()->w();
+            }
+            int indent = it->depth() * icon_width;
+            int label_width = 0;
+            fl_font(tr->labelfont(), tr->labelsize());
+            if (it->label()) {
+                label_width = (int)fl_width(it->label());
+            }
+
+            int item_x = indent;
+            int item_w = label_width + 40; // Add some padding for icon space
+
+            // Get current scroll position and tree viewport
+            int scroll_x = tr->hposition();
+            int tree_view_w = tr->w();
+
+            // Check if item extends beyond right edge of visible area
+            if (item_x + item_w > scroll_x + tree_view_w) {
+                // Scroll right to show the item with some padding
+                int new_scroll_x = (item_x + item_w) - tree_view_w + 20;
+                tr->hposition(new_scroll_x);
+            }
+            // Check if item is too far left
+            else if (item_x < scroll_x) {
+                // Scroll left to show the item with some padding
+                int new_scroll_x = item_x - 20;
+                if (new_scroll_x < 0) new_scroll_x = 0;
+                tr->hposition(new_scroll_x);
+            }
+        }
+
         if (!it->has_children()) {
             char rel[FL_PATH_MAX];
             tr->item_pathname(rel, sizeof(rel), it);
@@ -350,6 +389,35 @@ void tree_cb(Fl_Widget* w, void*) {
             load_file(full_path);
         }
     } else if (tr->callback_reason() == FL_TREE_REASON_OPENED) {
+        // Auto-scroll horizontally to make expanded item visible
+        if (it) {
+            // Calculate item position based on tree indentation and text width
+            int icon_width = 16; // Default icon width
+            if (tr->openicon() && tr->openicon()->w() > 0) {
+                icon_width = tr->openicon()->w();
+            }
+            int indent = it->depth() * icon_width;
+            int label_width = 0;
+            fl_font(tr->labelfont(), tr->labelsize());
+            if (it->label()) {
+                label_width = (int)fl_width(it->label());
+            }
+
+            int item_x = indent;
+            int item_w = label_width + 40; // Add some padding for icon space
+
+            // Get current scroll position and tree viewport
+            int scroll_x = tr->hposition();
+            int tree_view_w = tr->w();
+
+            // Check if expanded item extends beyond right edge of visible area
+            if (item_x + item_w > scroll_x + tree_view_w) {
+                // Scroll right to show the expanded item with some padding
+                int new_scroll_x = (item_x + item_w) - tree_view_w + 20;
+                tr->hposition(new_scroll_x);
+            }
+        }
+
         // Handle lazy loading when a directory is expanded
         if (it->has_children()) {
             // Check if this directory has placeholder children
@@ -376,9 +444,9 @@ void tree_cb(Fl_Widget* w, void*) {
             }
 
             if (has_placeholder) {
-                // Remove all placeholders
-                for (Fl_Tree_Item* placeholder : placeholders_to_remove) {
-                    file_tree->remove(placeholder);
+                // Remove all placeholders - iterate backwards to avoid index issues
+                for (int i = placeholders_to_remove.size() - 1; i >= 0; --i) {
+                    file_tree->remove(placeholders_to_remove[i]);
                 }
 
                 // Build the full path more carefully
@@ -424,6 +492,12 @@ void tree_cb(Fl_Widget* w, void*) {
                 file_tree->redraw();
             }
         }
+
+        // Save expansion state after loading directory
+        save_tree_expansion_state();
+    } else if (tr->callback_reason() == FL_TREE_REASON_CLOSED) {
+        // Save expansion state when an item is collapsed
+        save_tree_expansion_state();
     }
 }
 
@@ -738,5 +812,272 @@ int tree_handle_key(int key) {
 
         default:
             return 0;
+    }
+}
+
+// ======================
+// Tree Expansion State Persistence
+// ======================
+
+const char* tree_expansion_state_path() {
+    static char path[FL_PATH_MAX];
+    const char* home = getenv("HOME");
+    if (home) {
+        snprintf(path, sizeof(path), "%s/.flick_tree_expansion_%s", home, fl_filename_name(current_folder));
+    } else {
+        snprintf(path, sizeof(path), ".flick_tree_expansion_%s", fl_filename_name(current_folder));
+    }
+    return path;
+}
+
+static void collect_expanded_paths(Fl_Tree_Item* item, const std::string& parent_path, std::vector<std::string>& expanded_paths) {
+    if (!item) return;
+
+    // Build the current item's path
+    std::string current_path;
+    if (parent_path.empty()) {
+        // Root level - just use the item label (without icon)
+        const char* label = item->label();
+        if (label) {
+            const char* clean_label = label;
+            // Skip icon if present
+            if (strlen(label) > 2 && label[1] == ' ') {
+                clean_label = label + 2;
+            }
+            current_path = clean_label;
+        }
+    } else {
+        // Child item - build path from parent
+        const char* label = item->label();
+        if (label) {
+            const char* clean_label = label;
+            // Skip icon if present
+            if (strlen(label) > 2 && label[1] == ' ') {
+                clean_label = label + 2;
+            }
+            current_path = parent_path + "/" + clean_label;
+        }
+    }
+
+    // If this item is expanded and has children, save its path
+    if (item->is_open() && item->has_children()) {
+        expanded_paths.push_back(current_path);
+    }
+
+    // Recursively collect from children
+    for (int i = 0; i < item->children(); ++i) {
+        Fl_Tree_Item* child = item->child(i);
+        if (child) {
+            collect_expanded_paths(child, current_path, expanded_paths);
+        }
+    }
+}
+
+void save_tree_expansion_state() {
+    if (!file_tree || !file_tree->root()) return;
+
+    std::vector<std::string> expanded_paths;
+
+    // Collect expanded paths from all root children
+    Fl_Tree_Item* root = file_tree->root();
+    for (int i = 0; i < root->children(); ++i) {
+        Fl_Tree_Item* child = root->child(i);
+        if (child) {
+            collect_expanded_paths(child, "", expanded_paths);
+        }
+    }
+
+    // Save to file
+    FILE* fp = fopen(tree_expansion_state_path(), "w");
+    if (fp) {
+        for (const std::string& path : expanded_paths) {
+            fprintf(fp, "%s\n", path.c_str());
+        }
+        fclose(fp);
+    }
+}
+
+static void expand_path_in_tree(const std::string& target_path) {
+    if (!file_tree || target_path.empty()) return;
+
+    // Split the path into components
+    std::vector<std::string> path_components;
+    std::string current_component;
+    for (char c : target_path) {
+        if (c == '/') {
+            if (!current_component.empty()) {
+                path_components.push_back(current_component);
+                current_component.clear();
+            }
+        } else {
+            current_component += c;
+        }
+    }
+    if (!current_component.empty()) {
+        path_components.push_back(current_component);
+    }
+
+    // Navigate through the tree and expand items
+    Fl_Tree_Item* current_item = file_tree->root();
+    std::string built_path;
+
+    for (const std::string& component : path_components) {
+        if (!built_path.empty()) built_path += "/";
+        built_path += component;
+
+        // Find the child item with this component name
+        Fl_Tree_Item* found_child = nullptr;
+        for (int i = 0; current_item && i < current_item->children(); ++i) {
+            Fl_Tree_Item* child = current_item->child(i);
+            if (child && child->label()) {
+                const char* label = child->label();
+                // Skip icon if present
+                if (strlen(label) > 2 && label[1] == ' ') {
+                    label = label + 2;
+                }
+                if (component == label) {
+                    found_child = child;
+                    break;
+                }
+            }
+        }
+
+        if (found_child) {
+            current_item = found_child;
+            // Expand this item
+            current_item->open();
+
+            // If this item has placeholder children, trigger lazy loading
+            if (current_item->has_children()) {
+                bool has_placeholder = false;
+                for (int i = 0; i < current_item->children(); ++i) {
+                    Fl_Tree_Item* child = current_item->child(i);
+                    if (child && child->label()) {
+                        const char* label = child->label();
+                        if (strstr(label, "...") || strstr(label, "Loading...")) {
+                            has_placeholder = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (has_placeholder) {
+                    // Remove placeholders and load directory contents
+                    std::vector<Fl_Tree_Item*> placeholders_to_remove;
+                    for (int i = 0; i < current_item->children(); ++i) {
+                        Fl_Tree_Item* child = current_item->child(i);
+                        if (child && child->label()) {
+                            const char* label = child->label();
+                            if (strstr(label, "...") || strstr(label, "Loading...")) {
+                                placeholders_to_remove.push_back(child);
+                            }
+                        }
+                    }
+
+                    // Remove placeholders
+                    for (int i = placeholders_to_remove.size() - 1; i >= 0; --i) {
+                        file_tree->remove(placeholders_to_remove[i]);
+                    }
+
+                    // Build full filesystem path for this item
+                    std::string full_path = std::string(current_folder) + "/" + built_path;
+
+                    // Load directory contents
+                    load_dir_recursive(full_path.c_str(), current_item, true);
+                }
+            }
+        } else {
+            // Path component not found - might need lazy loading
+            // Check if current_item has placeholder children that need loading
+            if (current_item && current_item->has_children()) {
+                bool has_placeholder = false;
+                for (int i = 0; i < current_item->children(); ++i) {
+                    Fl_Tree_Item* child = current_item->child(i);
+                    if (child && child->label()) {
+                        const char* label = child->label();
+                        if (strstr(label, "...") || strstr(label, "Loading...")) {
+                            has_placeholder = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (has_placeholder) {
+                    // Remove placeholders and load directory contents
+                    std::vector<Fl_Tree_Item*> placeholders_to_remove;
+                    for (int i = 0; i < current_item->children(); ++i) {
+                        Fl_Tree_Item* child = current_item->child(i);
+                        if (child && child->label()) {
+                            const char* label = child->label();
+                            if (strstr(label, "...") || strstr(label, "Loading...")) {
+                                placeholders_to_remove.push_back(child);
+                            }
+                        }
+                    }
+
+                    // Remove placeholders
+                    for (int i = placeholders_to_remove.size() - 1; i >= 0; --i) {
+                        file_tree->remove(placeholders_to_remove[i]);
+                    }
+
+                    // Build full filesystem path for current item
+                    std::string parent_path;
+                    if (built_path.find('/') != std::string::npos) {
+                        parent_path = built_path.substr(0, built_path.find_last_of('/'));
+                    }
+                    std::string full_path = parent_path.empty() ? current_folder : std::string(current_folder) + "/" + parent_path;
+
+                    // Load directory contents
+                    load_dir_recursive(full_path.c_str(), current_item, true);
+
+                    // Try to find the child again after loading
+                    for (int i = 0; current_item && i < current_item->children(); ++i) {
+                        Fl_Tree_Item* child = current_item->child(i);
+                        if (child && child->label()) {
+                            const char* label = child->label();
+                            // Skip icon if present
+                            if (strlen(label) > 2 && label[1] == ' ') {
+                                label = label + 2;
+                            }
+                            if (component == label) {
+                                found_child = child;
+                                current_item = found_child;
+                                current_item->open();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If still not found after lazy loading, stop here
+            if (!found_child) {
+                break;
+            }
+        }
+    }
+}
+
+void load_tree_expansion_state() {
+    FILE* fp = fopen(tree_expansion_state_path(), "r");
+    if (!fp) return;
+
+    char line[FL_PATH_MAX];
+    while (fgets(line, sizeof(line), fp)) {
+        // Remove trailing newline
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n') {
+            line[len-1] = '\0';
+        }
+
+        // Expand this path in the tree
+        expand_path_in_tree(std::string(line));
+    }
+
+    fclose(fp);
+
+    // Redraw the tree to show the expanded state
+    if (file_tree) {
+        file_tree->redraw();
     }
 }

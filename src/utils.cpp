@@ -995,10 +995,10 @@ const char* window_state_path() {
 
 void save_window_state() {
     if (!win) return;
-    
+
     FILE* fp = fopen(window_state_path(), "w");
     if (fp) {
-        fprintf(fp, "%d %d %d %d", win->x(), win->y(), win->w(), win->h());
+        fprintf(fp, "%d %d %d %d %d", win->x(), win->y(), win->w(), win->h(), tree_width);
         fclose(fp);
     }
 }
@@ -1006,20 +1006,30 @@ void save_window_state() {
 void load_window_state() {
     FILE* fp = fopen(window_state_path(), "r");
     if (fp) {
-        if (fscanf(fp, "%d %d %d %d", &window_x, &window_y, &window_w, &window_h) == 4) {
+        int loaded_tree_width = tree_width; // Keep current default if not loaded
+        int fields_read = fscanf(fp, "%d %d %d %d %d", &window_x, &window_y, &window_w, &window_h, &loaded_tree_width);
+
+        if (fields_read >= 4) {
             // Validate window position and size
             int screen_w = Fl::w();
             int screen_h = Fl::h();
-            
+
             // Ensure window is not off-screen
             if (window_x < 0) window_x = 0;
             if (window_y < 0) window_y = 0;
             if (window_x + window_w > screen_w) window_x = screen_w - window_w;
             if (window_y + window_h > screen_h) window_y = screen_h - window_h;
-            
+
             // Ensure minimum window size
             if (window_w < 800) window_w = 800;
             if (window_h < 600) window_h = 600;
+
+            // If tree width was successfully loaded, validate and use it
+            if (fields_read == 5) {
+                if (loaded_tree_width >= 100 && loaded_tree_width <= window_w - 200) {
+                    tree_width = loaded_tree_width;
+                }
+            }
         }
         fclose(fp);
     }

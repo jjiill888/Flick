@@ -138,12 +138,24 @@ TreeResizer::TreeResizer(int X,int Y,int W,int H) : Fl_Box(X,Y,W,H) {
 
 int TreeResizer::handle(int e) {
     switch(e){
+    case FL_ENTER:
+        fl_cursor(FL_CURSOR_WE);
+        return 1;
+    case FL_LEAVE:
+        fl_cursor(FL_CURSOR_DEFAULT);
+        return 1;
     case FL_PUSH:
     case FL_DRAG:
+        fl_cursor(FL_CURSOR_WE);
         tree_width = Fl::event_x();
         if (tree_width < 100) tree_width = 100;
-        if (tree_width > parent()->w() - 100) tree_width = parent()->w() - 100;
-        parent()->redraw();
+        if (tree_width > parent()->w() - 200) tree_width = parent()->w() - 200;
+        parent()->resize(parent()->x(), parent()->y(), parent()->w(), parent()->h());
+        return 1;
+    case FL_RELEASE:
+        fl_cursor(FL_CURSOR_DEFAULT);
+        // Save the new tree width to persist across sessions
+        save_window_state();
         return 1;
     }
     return Fl_Box::handle(e);
