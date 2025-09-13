@@ -4,6 +4,7 @@
 #include "editor_window.hpp"
 #include "scrollbar_theme.hpp"
 #include "tab_bar.hpp"
+#include "dock_button.hpp"
 #include <FL/Fl_Text_Display.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl.H>
@@ -28,6 +29,7 @@ Fl_Box          *status_right = nullptr;
 Fl_Box          *tree_resizer = nullptr;
 Fl_Menu_Button *tree_context_menu = nullptr;
 TabBar          *tab_bar = nullptr;
+DockButton      *dock_button = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
@@ -42,19 +44,19 @@ int             window_h = 887;
 static bool file_tree_loaded = false;
 static std::future<void> file_tree_future;
 
-static void tree_new_file_cb(Fl_Widget* w, void*) {
+static void legacy_tree_new_file_cb(Fl_Widget* w, void*) {
     new_file_cb(w, tree_context_menu->user_data());
 }
 
-static void tree_new_folder_cb(Fl_Widget* w, void*) {
+static void legacy_tree_new_folder_cb(Fl_Widget* w, void*) {
     new_folder_cb(w, tree_context_menu->user_data());
 }
 
-static void tree_refresh_cb(Fl_Widget* w, void*) {
+static void legacy_tree_refresh_cb(Fl_Widget* w, void*) {
     refresh_subdir_cb(w, tree_context_menu->user_data());
 }
 
-static void tree_delete_cb(Fl_Widget* w, void*) {
+static void legacy_tree_delete_cb(Fl_Widget* w, void*) {
     delete_cb(w, tree_context_menu->user_data());
 }
 
@@ -88,8 +90,21 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
             }
         }
         menu->size(W, menu->h());
-        status_left->position(0, H - status_h);
-        status_left->size(W/2, status_h);
+
+        // Update dock button position
+        if (dock_button) {
+            const int dock_btn_margin = 2;
+            dock_button->position(dock_btn_margin, H - status_h);
+        }
+
+        // Update status bar layout to accommodate dock button
+        const int dock_btn_w = 36;
+        const int dock_btn_margin = 2;
+        const int status_left_x = dock_btn_w + dock_btn_margin * 2;
+        const int status_left_w = W/2 - status_left_x;
+
+        status_left->position(status_left_x, H - status_h);
+        status_left->size(status_left_w, status_h);
         status_right->position(W/2, H - status_h);
         status_right->size(W - W/2, status_h);
     }
@@ -135,15 +150,20 @@ int TreeResizer::handle(int e) {
 }
 
 int My_Tree::handle(int e) {
-    if (e == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE && tree_context_menu) {
-        Fl_Tree_Item* it = item_clicked();
-        if (it) {
-            tree_context_menu->user_data(it);
-            tree_context_menu->position(Fl::event_x(), Fl::event_y());
-            tree_context_menu->popup();
+    // Handle keyboard shortcuts
+    if (e == FL_KEYDOWN) {
+        if (tree_handle_key(Fl::event_key())) {
             return 1;
         }
     }
+
+    // Handle right-click context menu
+    if (e == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE) {
+        Fl_Tree_Item* it = item_clicked();
+        show_tree_context_menu(Fl::event_x(), Fl::event_y(), it);
+        return 1;
+    }
+
     return Fl_Tree::handle(e);
 }
 
@@ -223,10 +243,10 @@ int run_editor(int argc,char** argv){
     
     tree_context_menu = new Fl_Menu_Button(0,0,0,0);
     tree_context_menu->hide();
-    tree_context_menu->add("New File", 0, tree_new_file_cb);
-    tree_context_menu->add("New Folder", 0, tree_new_folder_cb);
-    tree_context_menu->add("Refresh", 0, tree_refresh_cb);
-    tree_context_menu->add("Delete", 0, tree_delete_cb);
+    tree_context_menu->add("New File", 0, legacy_tree_new_file_cb);
+    tree_context_menu->add("New Folder", 0, legacy_tree_new_folder_cb);
+    tree_context_menu->add("Refresh", 0, legacy_tree_refresh_cb);
+    tree_context_menu->add("Delete", 0, legacy_tree_delete_cb);
     tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
     
     // Create tab bar on right side only (not over file tree)
@@ -319,11 +339,23 @@ int run_editor(int argc,char** argv){
     context_menu->add("Copy",0,copy_cb);
     context_menu->add("Paste",0,paste_cb);
     context_menu->add("Select All",0,select_all_cb);
-    status_left = new Fl_Box(0, win->h() - status_h, win->w()/2, status_h);
+    // Create dock button first - minimal size and positioning
+    const int dock_btn_w = 36;  // Smaller, more subtle width
+    const int dock_btn_margin = 2;  // Minimal margin
+    dock_button = new DockButton(dock_btn_margin, win->h() - status_h,
+                                 dock_btn_w, status_h, "Tree");  // Full status bar height
+    dock_button->set_tree_visible(tree_width > 0);
+
+    // Adjust status bar layout to accommodate dock button
+    const int status_left_x = dock_btn_w + dock_btn_margin * 2;
+    const int status_left_w = win->w()/2 - status_left_x;
+
+    status_left = new Fl_Box(status_left_x, win->h() - status_h, status_left_w, status_h);
     status_left->box(FL_FLAT_BOX);
     status_left->labelsize(13);
     status_left->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     status_left->label("");
+
     status_right = new Fl_Box(win->w()/2, win->h() - status_h, win->w() - win->w()/2, status_h);
     status_right->box(FL_FLAT_BOX);
     status_right->labelsize(13);

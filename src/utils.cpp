@@ -638,12 +638,12 @@ void quit_cb(Fl_Widget*, void*) {
         if (r == 1) save_cb(NULL, NULL);
     }
     save_last_file();
-    
+
     // Save tab state before quitting
     if (tab_bar) {
         tab_bar->save_tab_state();
     }
-    
+
     win->hide();
 }
 

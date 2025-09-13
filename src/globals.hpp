@@ -37,6 +37,9 @@ extern Fl_Box          *status_right;
 extern Fl_Box          *tree_resizer;
 extern Fl_Menu_Button *tree_context_menu;
 extern TabBar          *tab_bar;
+
+class DockButton;
+extern DockButton      *dock_button;
 extern time_t           last_save_time;
 extern int             tree_width;
 extern Theme           current_theme;
@@ -89,6 +92,9 @@ void load_folder(const char* folder);
 void load_last_folder_if_any(void);
 void refresh_tree_item(class Fl_Tree_Item* it);
 void tree_cb(Fl_Widget* w, void*);
+
+// Dock button functions
+void toggle_file_tree(void);
 
 // Window position and size functions
 void save_window_state(void);

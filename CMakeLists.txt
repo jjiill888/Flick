@@ -58,6 +58,7 @@ set(SOURCES
     src/scrollbar_theme.cpp
     src/editor_state.cpp
     src/tab_bar.cpp
+    src/dock_button.cpp
 )
 
 # Header files
@@ -70,6 +71,7 @@ set(HEADERS
     src/scrollbar_theme.hpp
     src/editor_state.hpp
     src/tab_bar.hpp
+    src/dock_button.hpp
 )
 
 # Create executable
