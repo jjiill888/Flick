@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdio>
+#include <cstdint>
 #include <set>
 #include <string>
 #include <unistd.h>
@@ -102,9 +103,43 @@ static bool is_source_file(const char* name) {
     return source_extensions.find(ext) != source_extensions.end();
 }
 
-static void load_dir_recursive(const char* dir_path, Fl_Tree_Item* parent_item, int depth = 0) {
-    if (depth > 3) return; // Limit recursion depth
+static bool has_subdirectories(const char* dir_path) {
+    if (!dir_path || !*dir_path) return false;
 
+    DIR* d = opendir(dir_path);
+    if (!d) {
+        // Debug: Directory couldn't be opened
+        return false;
+    }
+
+    struct dirent* e;
+    bool has_dirs = false;
+
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        if (should_ignore_item(e->d_name)) continue;
+
+        // Build full path more carefully
+        std::string full_path = std::string(dir_path);
+        if (full_path.back() != '/') {
+            full_path += "/";
+        }
+        full_path += e->d_name;
+
+        struct stat st;
+        if (stat(full_path.c_str(), &st) == 0) {
+            if (S_ISDIR(st.st_mode)) {
+                // Found a directory that's not ignored
+                has_dirs = true;
+                break;
+            }
+        }
+    }
+    closedir(d);
+    return has_dirs;
+}
+
+static void load_dir_recursive(const char* dir_path, Fl_Tree_Item* parent_item, bool lazy_load = false) {
     DIR* d = opendir(dir_path);
     if (!d) return;
 
@@ -168,8 +203,38 @@ static void load_dir_recursive(const char* dir_path, Fl_Tree_Item* parent_item, 
             item->label(labeled_name.c_str());
 
             if (entry.second) {
-                // Recursively load subdirectories
-                load_dir_recursive(full_path.c_str(), item, depth + 1);
+                // For directories in lazy load mode
+                if (lazy_load) {
+                    // Be optimistic: add placeholder if directory might have content
+                    // We use a more permissive check - if we can't determine or if it has subdirs
+                    bool should_add_placeholder = true;
+
+                    // Only skip placeholder if we're absolutely sure directory is empty
+                    DIR* check_dir = opendir(full_path.c_str());
+                    if (check_dir) {
+                        struct dirent* check_entry;
+                        bool found_any_item = false;
+                        while ((check_entry = readdir(check_dir))) {
+                            if (!strcmp(check_entry->d_name, ".") || !strcmp(check_entry->d_name, "..")) continue;
+                            if (should_ignore_item(check_entry->d_name)) continue;
+                            found_any_item = true;
+                            break;
+                        }
+                        closedir(check_dir);
+                        should_add_placeholder = found_any_item;
+                    }
+
+                    if (should_add_placeholder) {
+                        std::string placeholder_path = rel_path + "/__LAZY_LOAD_PLACEHOLDER__";
+                        Fl_Tree_Item* placeholder = file_tree->add(placeholder_path.c_str());
+                        if (placeholder) {
+                            placeholder->label("...");
+                        }
+                    }
+                } else {
+                    // Initial load: load immediate children with lazy loading
+                    load_dir_recursive(full_path.c_str(), item, true);
+                }
                 item->close(); // Start collapsed
             }
         }
@@ -253,7 +318,7 @@ void refresh_tree_item(Fl_Tree_Item* it) {
 
     // Reload directory content
     bool was_open = it->is_open();
-    load_dir_recursive(full_path.c_str(), it);
+    load_dir_recursive(full_path.c_str(), it, true);
 
     if (was_open) {
         it->open();
@@ -283,6 +348,81 @@ void tree_cb(Fl_Widget* w, void*) {
             char full_path[FL_PATH_MAX];
             snprintf(full_path, sizeof(full_path), "%s/%s", current_folder, rel);
             load_file(full_path);
+        }
+    } else if (tr->callback_reason() == FL_TREE_REASON_OPENED) {
+        // Handle lazy loading when a directory is expanded
+        if (it->has_children()) {
+            // Check if this directory has placeholder children
+            bool has_placeholder = false;
+            std::vector<Fl_Tree_Item*> placeholders_to_remove;
+
+            // Find all placeholder children
+            for (int i = 0; i < it->children(); ++i) {
+                Fl_Tree_Item* child = it->child(i);
+                if (child) {
+                    // Get the child's path to check for placeholder pattern
+                    char child_path[FL_PATH_MAX];
+                    file_tree->item_pathname(child_path, sizeof(child_path), child);
+                    const char* label = child->label();
+
+                    // Check for placeholder by path pattern or label content
+                    if ((label && (strstr(label, "...") || strstr(label, "Loading..."))) ||
+                        strstr(child_path, "__LAZY_LOAD_PLACEHOLDER__") ||
+                        strstr(child_path, "__PLACEHOLDER_")) {
+                        placeholders_to_remove.push_back(child);
+                        has_placeholder = true;
+                    }
+                }
+            }
+
+            if (has_placeholder) {
+                // Remove all placeholders
+                for (Fl_Tree_Item* placeholder : placeholders_to_remove) {
+                    file_tree->remove(placeholder);
+                }
+
+                // Build the full path more carefully
+                char item_path[FL_PATH_MAX];
+                file_tree->item_pathname(item_path, sizeof(item_path), it);
+
+                // Remove root label prefix if present - be more careful with deep paths
+                const char* root_lbl = file_tree->root()->label();
+                char* clean_path = item_path;
+                if (root_lbl && *root_lbl) {
+                    // Extract just the folder name from root label (remove icon if present)
+                    const char* root_name = root_lbl;
+                    if (strlen(root_lbl) > 2 && root_lbl[1] == ' ') {
+                        root_name = root_lbl + 2; // Skip icon
+                    }
+
+                    size_t len = strlen(root_name);
+                    if (!strncmp(item_path, root_name, len) && (item_path[len] == '/' || item_path[len] == '\0')) {
+                        if (item_path[len] == '/') {
+                            clean_path = item_path + len + 1;
+                        } else {
+                            clean_path = item_path + len;
+                        }
+                    }
+                }
+
+                // Build full filesystem path
+                std::string full_path;
+                if (strlen(clean_path) > 0) {
+                    full_path = std::string(current_folder) + "/" + clean_path;
+                } else {
+                    full_path = current_folder;
+                }
+
+                // Load directory contents and check if any children were actually added
+                int children_before = it->children();
+                load_dir_recursive(full_path.c_str(), it, true);
+                int children_after = it->children();
+
+                // If no children were added (directory is empty or has no displayable content),
+                // the directory will naturally not show a "+" icon, which is correct
+
+                file_tree->redraw();
+            }
         }
     }
 }
