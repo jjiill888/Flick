@@ -5,6 +5,7 @@
 #include "editor_window.hpp"
 #include "tab_bar.hpp"
 #include "custom_title_bar.hpp"
+#include "colors.hpp"
 #include <thread>
 #include <FL/Fl_Text_Display.H>
 #include <FL/Fl.H>
@@ -28,30 +29,46 @@
 #  define HAVE_SCROLLBUTTONS 1
 #endif
 
-// Style table used for syntax highlighting with JetBrains Mono - VSCode Dark theme colors
+// Style table - Optimized contrast syntax highlighting
 Fl_Text_Display::Style_Table_Entry style_table[] = {
-    { fl_rgb_color(212,212,212), FL_COURIER,        14 }, // A - plain text (JetBrains Mono Regular)
-    { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // B - line comment (JetBrains Mono Italic)
-    { fl_rgb_color(106,153,85),  FL_COURIER_ITALIC, 14 }, // C - block comment (JetBrains Mono Italic)
-    { fl_rgb_color(206,145,120), FL_COURIER,        14 }, // D - string literal (JetBrains Mono Regular)
-    { fl_rgb_color(197,134,192), FL_COURIER_BOLD,   14 }, // E - preprocessor (JetBrains Mono Bold)
-    { fl_rgb_color(86,156,214),  FL_COURIER_BOLD,   14 }, // F - keyword (JetBrains Mono Bold)
-    { fl_rgb_color(255,255,0),   FL_COURIER,        14 }  // G - search highlight (JetBrains Mono Regular)
+    { Colors::rgb(Colors::SYNTAX_VARIABLE),  FL_COURIER,        14 }, // A - plain text (variables)
+    { Colors::rgb(Colors::SYNTAX_COMMENT),   FL_COURIER_ITALIC, 14 }, // B - line comment
+    { Colors::rgb(Colors::SYNTAX_COMMENT),   FL_COURIER_ITALIC, 14 }, // C - block comment
+    { Colors::rgb(Colors::SYNTAX_STRING),    FL_COURIER,        14 }, // D - string literal
+    { Colors::rgb(Colors::SYNTAX_OPERATOR),  FL_COURIER,        14 }, // E - preprocessor
+    { Colors::rgb(Colors::SYNTAX_KEYWORD),   FL_COURIER,        14 }, // F - keyword
+    { Colors::rgb(Colors::WARNING),          FL_COURIER,        14 }, // G - search highlight
+    { Colors::rgb(Colors::SYNTAX_NUMBER),    FL_COURIER,        14 }, // H - numbers/constants
+    { Colors::rgb(Colors::SYNTAX_TYPE),      FL_COURIER,        14 }, // I - types
+    { Colors::rgb(Colors::SYNTAX_FUNCTION),  FL_COURIER,        14 }  // J - functions
 };
 const int style_table_size = sizeof(style_table) / sizeof(style_table[0]);
 
 static const char *keywords[] = {
-    "auto", "bool", "break", "case", "char", "class", "const", "continue",
-    "default", "delete", "do", "double", "else", "enum", "extern", "float",
-    "for", "goto", "if", "inline", "int", "long", "namespace", "new", "operator",
-    "private", "protected", "public", "return", "short", "signed", "sizeof",
+    "auto", "break", "case", "const", "continue",
+    "default", "delete", "do", "else", "enum", "extern",
+    "for", "goto", "if", "inline", "namespace", "new", "operator",
+    "private", "protected", "public", "return", "signed",
     "static", "struct", "switch", "template", "typedef", "typename", "union",
-    "unsigned", "virtual", "void", "volatile", "while", NULL
+    "unsigned", "virtual", "volatile", "while", NULL
+};
+
+static const char *types[] = {
+    "bool", "char", "double", "float", "int", "long", "short", "void",
+    "size_t", "int8_t", "int16_t", "int32_t", "int64_t",
+    "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+    "string", "vector", "map", "set", "pair", NULL
 };
 
 static bool is_keyword(const char *s) {
     for (int i = 0; keywords[i]; ++i)
         if (strcmp(keywords[i], s) == 0) return true;
+    return false;
+}
+
+static bool is_type(const char *s) {
+    for (int i = 0; types[i]; ++i)
+        if (strcmp(types[i], s) == 0) return true;
     return false;
 }
 
@@ -104,6 +121,16 @@ static void style_parse(const char *text, char *style, int length) {
             style[i] = 'E';
             current = 'B';
             continue;
+        } else if (std::isdigit(static_cast<unsigned char>(c))) {
+            // Number literal
+            int j = 0;
+            while (i + j < length && (std::isalnum(static_cast<unsigned char>(text[i+j])) ||
+                   text[i+j] == '.' || text[i+j] == 'x' || text[i+j] == 'X'))
+                j++;
+            for (int k = 0; k < j; ++k) style[i+k] = 'H';
+            i += j - 1;
+            col += j;
+            continue;
         } else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
             char buf[64];
             int j = 0;
@@ -113,12 +140,27 @@ static void style_parse(const char *text, char *style, int length) {
                    j < (int)sizeof(buf)-1)
                 buf[j++] = text[i+j];
             buf[j] = '\0';
+
+            // Check for function call (identifier followed by '(')
+            bool is_function_call = false;
+            int next_pos = i + j;
+            while (next_pos < length && std::isspace(static_cast<unsigned char>(text[next_pos])))
+                next_pos++;
+            if (next_pos < length && text[next_pos] == '(')
+                is_function_call = true;
+
             if (is_keyword(buf)) {
                 for (int k = 0; k < j; ++k) style[i+k] = 'F';
-                i += j - 1;
-                col += j;
-                continue;
+            } else if (is_type(buf)) {
+                for (int k = 0; k < j; ++k) style[i+k] = 'I';
+            } else if (is_function_call) {
+                for (int k = 0; k < j; ++k) style[i+k] = 'J';
+            } else {
+                for (int k = 0; k < j; ++k) style[i+k] = 'A';
             }
+            i += j - 1;
+            col += j;
+            continue;
         }
 
         style[i] = 'A';
@@ -653,73 +695,77 @@ void quit_cb(Fl_Widget*, void*) {
 
 void apply_theme(Theme theme) {
     if (theme == THEME_DARK) {
-        // VSCode Dark theme colors
-        Fl::background(30, 30, 30);  // VSCode main background
-        Fl::background2(37, 37, 38); // VSCode secondary background
-        Fl::foreground(204, 204, 204); // VSCode text color
+        // Tokyo Night color system - low saturation, high contrast
+        Fl::background(Colors::WINDOW_BG[0], Colors::WINDOW_BG[1], Colors::WINDOW_BG[2]);
+        Fl::background2(Colors::PANEL_BG[0], Colors::PANEL_BG[1], Colors::PANEL_BG[2]);
+        Fl::foreground(Colors::TEXT_PRIMARY[0], Colors::TEXT_PRIMARY[1], Colors::TEXT_PRIMARY[2]);
+
         if (title_bar) {
             title_bar->set_theme_colors(
-                fl_rgb_color(45, 45, 48),    // Background
-                fl_rgb_color(204, 204, 204), // Text color
-                fl_rgb_color(45, 45, 48)     // Button color
+                Colors::rgb(Colors::TITLEBAR_BG),
+                Colors::rgb(Colors::TEXT_PRIMARY),
+                Colors::rgb(Colors::TITLEBAR_BG)
             );
         }
         if (menu) {
-            menu->color(fl_rgb_color(45, 45, 45));  // VSCode menu bar
-            menu->textcolor(fl_rgb_color(204, 204, 204));
-            menu->selection_color(fl_rgb_color(37, 37, 38));
+            menu->color(Colors::rgb(Colors::MENUBAR_BG));
+            menu->textcolor(Colors::rgb(Colors::TEXT_PRIMARY));
+            menu->selection_color(Colors::rgb(Colors::ACCENT_BLUE));
         }
         if (status_left && status_right) {
-            // VSCode status bar - keep it dark, not blue as requested
-            status_left->color(fl_rgb_color(37, 37, 38));
-            status_left->labelcolor(fl_rgb_color(204, 204, 204));
-            status_right->color(fl_rgb_color(37, 37, 38));
-            status_right->labelcolor(fl_rgb_color(204, 204, 204));
+            status_left->color(Colors::rgb(Colors::STATUSBAR_BG));
+            status_left->labelcolor(Colors::rgb(Colors::ACCENT_BLUE));
+            status_right->color(Colors::rgb(Colors::STATUSBAR_BG));
+            status_right->labelcolor(Colors::rgb(Colors::TEXT_SECONDARY));
         }
         if (editor) {
-            editor->color(fl_rgb_color(30, 30, 30), FL_DARK_BLUE);  // VSCode editor background
-            editor->textcolor(fl_rgb_color(212, 212, 212));  // VSCode text color
-            editor->cursor_color(fl_rgb_color(212, 212, 212));
-            editor->linenumber_bgcolor(fl_rgb_color(30, 30, 30));
-            editor->linenumber_fgcolor(fl_rgb_color(133, 133, 133));
+            editor->color(Colors::rgb(Colors::EDITOR_BG), Colors::rgb(Colors::SELECTION_BG));
+            editor->textcolor(Colors::rgb(Colors::TEXT_PRIMARY));
+            editor->cursor_color(Colors::rgb(Colors::ACCENT_BLUE));
+            editor->linenumber_bgcolor(Colors::rgb(Colors::EDITOR_BG));
+            editor->linenumber_fgcolor(Colors::rgb(Colors::TEXT_DISABLED));
             Fl_Scrollbar* hsb = static_cast<Fl_Scrollbar*>(editor->child(0));
             Fl_Scrollbar* vsb = static_cast<Fl_Scrollbar*>(editor->child(1));
             if (hsb) {
-                hsb->color(fl_rgb_color(30,30,30), fl_rgb_color(79,79,79));
+                hsb->color(Colors::rgb(Colors::EDITOR_BG), Colors::rgb(Colors::TEXT_DISABLED));
                 hsb->box(scrollbar_track_box());
                 hsb->slider(scrollbar_thumb_box());
 #ifdef HAVE_SCROLLBUTTONS
-                hsb->scrollbuttons(false);  // Remove arrow buttons
+                hsb->scrollbuttons(false);
 #endif
             }
             if (vsb) {
-                vsb->color(fl_rgb_color(30,30,30), fl_rgb_color(79,79,79));
+                vsb->color(Colors::rgb(Colors::EDITOR_BG), Colors::rgb(Colors::TEXT_DISABLED));
                 vsb->box(scrollbar_track_box());
                 vsb->slider(scrollbar_thumb_box());
 #ifdef HAVE_SCROLLBUTTONS
-                vsb->scrollbuttons(false);  // Remove arrow buttons
+                vsb->scrollbuttons(false);
 #endif
             }
         }
         if (file_tree) {
-            file_tree->color(fl_rgb_color(37, 37, 38));  // VSCode sidebar
-            file_tree->selection_color(fl_rgb_color(37, 37, 38));
-            
-            // Apply modern scrollbars to file tree and remove arrow buttons
+            // File tree: darker panel background for depth
+            file_tree->color(Colors::rgb(Colors::PANEL_BG));
+            file_tree->selection_color(Colors::rgb(Colors::HOVER_BG));
+
             for (int i = 0; i < file_tree->children(); i++) {
                 Fl_Scrollbar* sb = dynamic_cast<Fl_Scrollbar*>(file_tree->child(i));
                 if (sb) {
-                    sb->color(fl_rgb_color(37,37,38), fl_rgb_color(79,79,79));
+                    sb->color(Colors::rgb(Colors::PANEL_BG), Colors::rgb(Colors::TEXT_DISABLED));
                     sb->box(scrollbar_track_box());
                     sb->slider(scrollbar_thumb_box());
 #ifdef HAVE_SCROLLBUTTONS
-                    sb->scrollbuttons(false);  // Remove arrow buttons
+                    sb->scrollbuttons(false);
 #endif
                 }
             }
         }
+        if (tab_bar) {
+            // Tab bar: lightest background for layering effect
+            tab_bar->color(Colors::rgb(Colors::TAB_BAR_BG));
+        }
         if (tree_resizer) {
-            tree_resizer->color(fl_rgb_color(45, 45, 45));
+            tree_resizer->color(Colors::rgb(Colors::BORDER));
         }
     } else {
         Fl::background(240, 240, 240);
@@ -727,21 +773,21 @@ void apply_theme(Theme theme) {
         Fl::foreground(30, 30, 30);
         if (title_bar) {
             title_bar->set_theme_colors(
-                fl_rgb_color(240, 240, 240),  // Background
+                fl_rgb_color(230, 230, 230),  // Slightly darker title bar
                 fl_rgb_color(30, 30, 30),     // Text color
-                fl_rgb_color(240, 240, 240)   // Button color
+                fl_rgb_color(230, 230, 230)   // Button color
             );
         }
         if (menu) {
-            menu->color(fl_rgb_color(240, 240, 240));
+            menu->color(fl_rgb_color(245, 245, 245));
             menu->textcolor(fl_rgb_color(30, 30, 30));
-            menu->selection_color(fl_rgb_color(210, 210, 210));
+            menu->selection_color(fl_rgb_color(0, 120, 215));  // Windows 10 blue
         }
         if (status_left && status_right) {
-            status_left->color(fl_rgb_color(240, 240, 240));
-            status_left->labelcolor(fl_rgb_color(30, 30, 30));
-            status_right->color(fl_rgb_color(240, 240, 240));
-            status_right->labelcolor(fl_rgb_color(30, 30, 30));
+            status_left->color(fl_rgb_color(0, 120, 215));  // Blue status bar
+            status_left->labelcolor(fl_rgb_color(255, 255, 255));
+            status_right->color(fl_rgb_color(0, 120, 215));
+            status_right->labelcolor(fl_rgb_color(255, 255, 255));
         }
         if (editor) {
             editor->color(fl_rgb_color(255,255,255), FL_DARK_BLUE);

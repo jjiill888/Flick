@@ -1,5 +1,6 @@
 #include "tab_bar.hpp"
 #include "globals.hpp"
+#include "colors.hpp"
 #include <FL/fl_draw.H>
 #include <FL/Fl.H>
 #include <algorithm>
@@ -28,48 +29,58 @@ bool TabButton::is_point_in_close_button(int px, int py) {
 void TabButton::draw() {
     // Update close button position in case tab was moved
     calculate_close_button_bounds();
-    
-    // Draw tab background - VSCode style
+
+    // Draw tab background - Modern layered style
     Fl_Color bg_color, text_color;
     if (tab->is_active) {
-        bg_color = current_theme == THEME_DARK ? fl_rgb_color(30, 30, 30) : fl_rgb_color(255, 255, 255);
-        text_color = current_theme == THEME_DARK ? fl_rgb_color(212, 212, 212) : FL_BLACK;
+        // Active tab: lighter background (editor color)
+        bg_color = current_theme == THEME_DARK ? Colors::rgb(Colors::EDITOR_BG) : fl_rgb_color(255, 255, 255);
+        text_color = current_theme == THEME_DARK ? Colors::rgb(Colors::TEXT_PRIMARY) : FL_BLACK;
     } else {
-        bg_color = current_theme == THEME_DARK ? fl_rgb_color(45, 45, 45) : fl_rgb_color(240, 240, 240);
-        text_color = current_theme == THEME_DARK ? fl_rgb_color(133, 133, 133) : fl_rgb_color(60, 60, 60);
+        // Inactive tab: darker (tab bar background)
+        bg_color = current_theme == THEME_DARK ? Colors::rgb(Colors::TAB_BAR_BG) : fl_rgb_color(240, 240, 240);
+        text_color = current_theme == THEME_DARK ? Colors::rgb(Colors::TEXT_SECONDARY) : fl_rgb_color(60, 60, 60);
     }
-    
+
     fl_color(bg_color);
     fl_rectf(x(), y(), w(), h());
-    
-    // Draw border - VSCode style
-    Fl_Color border_color = current_theme == THEME_DARK ? fl_rgb_color(45, 45, 45) : fl_rgb_color(200, 200, 200);
+
+    // Draw active tab indicator line (blue accent at bottom)
+    if (tab->is_active && current_theme == THEME_DARK) {
+        fl_color(Colors::rgb(Colors::ACTIVE_TAB_LINE));
+        fl_line_style(FL_SOLID, 2);
+        fl_line(x(), y() + h() - 1, x() + w(), y() + h() - 1);
+        fl_line_style(0);  // Reset
+    }
+
+    // Draw border
+    Fl_Color border_color = current_theme == THEME_DARK ? Colors::rgb(Colors::BORDER) : fl_rgb_color(200, 200, 200);
     fl_color(border_color);
     fl_rect(x(), y(), w(), h());
-    
-    // Draw close button (×) - VSCode style
-    Fl_Color close_color = close_hovered ? 
-        (current_theme == THEME_DARK ? fl_rgb_color(255, 100, 100) : fl_rgb_color(200, 50, 50)) :
-        (current_theme == THEME_DARK ? fl_rgb_color(133, 133, 133) : fl_rgb_color(100, 100, 100));
-    
+
+    // Draw close button (×)
+    Fl_Color close_color = close_hovered ?
+        (current_theme == THEME_DARK ? Colors::rgb(Colors::ERROR) : fl_rgb_color(200, 50, 50)) :
+        (current_theme == THEME_DARK ? Colors::rgb(Colors::TEXT_DISABLED) : fl_rgb_color(100, 100, 100));
+
     fl_color(close_color);
     fl_font(FL_HELVETICA, 11);
     fl_draw("×", close_x, close_y + 6);
-    
+
     // Draw filename
     fl_color(text_color);
     fl_font(FL_HELVETICA, 13);
-    
+
     std::string display_name = tab->filename;
     if (tab->is_modified) {
         display_name = "• " + display_name;
     }
-    
+
     // Calculate text area (excluding close button)
     int text_x = close_x + close_size + 3;
     int text_w = x() + w() - text_x - 3;
-    
-    // Left-align the text (no centering calculation needed)
+
+    // Left-align the text
     fl_push_clip(text_x, y(), text_w, h());
     fl_draw(display_name.c_str(), text_x, y() + h()/2 + 3);
     fl_pop_clip();
@@ -353,24 +364,24 @@ int TabBar::get_tab_index_at_position(int px) {
 }
 
 void TabBar::draw() {
-    // Draw background - VSCode style
-    Fl_Color bg_color = current_theme == THEME_DARK ? 
-        fl_rgb_color(45, 45, 45) : fl_rgb_color(250, 250, 250);
+    // Draw background - Layered tab bar (lightest layer)
+    Fl_Color bg_color = current_theme == THEME_DARK ?
+        Colors::rgb(Colors::TAB_BAR_BG) : fl_rgb_color(250, 250, 250);
     fl_color(bg_color);
     fl_rectf(x(), y(), w(), h());
-    
-    // Draw bottom border - VSCode style
-    Fl_Color border_color = current_theme == THEME_DARK ? 
-        fl_rgb_color(37, 37, 38) : fl_rgb_color(200, 200, 200);
+
+    // Draw bottom border
+    Fl_Color border_color = current_theme == THEME_DARK ?
+        Colors::rgb(Colors::BORDER) : fl_rgb_color(200, 200, 200);
     fl_color(border_color);
     fl_line(x(), y() + h() - 1, x() + w(), y() + h() - 1);
-    
+
     // Draw drag indicator if dragging
     if (dragging && drag_insert_index >= 0) {
         int tab_width = calculate_tab_width();
         int indicator_x = x() + drag_insert_index * tab_width;
-        
-        fl_color(current_theme == THEME_DARK ? FL_CYAN : FL_BLUE);
+
+        fl_color(current_theme == THEME_DARK ? Colors::rgb(Colors::ACCENT_CYAN) : FL_BLUE);
         fl_line_style(FL_SOLID, 3);
         fl_line(indicator_x, y(), indicator_x, y() + h());
         fl_line_style(FL_SOLID, 1); // Reset line style

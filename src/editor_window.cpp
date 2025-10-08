@@ -353,13 +353,24 @@ int My_Text_Editor::handle(int e) {
 int run_editor(int argc,char** argv){
     // Quick initialization of basic UI
     Fl::get_system_colors();
-    // Set all fonts to JetBrains Mono variants
-    Fl::set_font(FL_COURIER, "JetBrains Mono");
-    Fl::set_font(FL_HELVETICA, "JetBrains Mono");
-    Fl::set_font(FL_TIMES, "JetBrains Mono");
-    Fl::set_font(FL_SYMBOL, "JetBrains Mono");
-    Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75,110,175));
+
+    // Set modern UI fonts: Inter for UI elements (12-13px)
+    // Fallback chain: Inter -> SF Pro Display -> Segoe UI -> system default
+    Fl::set_font(FL_HELVETICA, "Inter:style=Regular");
+    Fl::set_font(FL_HELVETICA_BOLD, "Inter:style=Medium");
+    Fl::set_font(FL_HELVETICA_ITALIC, "Inter:style=Italic");
+
+    // Set code editor font to JetBrains Mono (14px for code readability)
+    Fl::set_font(FL_COURIER, "JetBrains Mono:style=Regular");
+    Fl::set_font(FL_COURIER_BOLD, "JetBrains Mono:style=Medium");
+    Fl::set_font(FL_COURIER_ITALIC, "JetBrains Mono:style=Italic");
+    Fl::set_font(FL_COURIER_BOLD_ITALIC, "JetBrains Mono:style=Medium Italic");
+
+    // Enable font antialiasing (already enabled by default on modern systems)
+    // Using gtk+ scheme ensures proper font rendering with fontconfig
     Fl::scheme("gtk+");
+
+    Fl::set_color(FL_SELECTION_COLOR, fl_rgb_color(75,110,175));
     apply_scrollbar_style();
 
     // Load window state before creating window
@@ -386,6 +397,8 @@ int run_editor(int argc,char** argv){
     // Create menu bar below title bar
     const int menu_h = 25;
     menu = new Fl_Menu_Bar(0, title_h, win->w(), menu_h);
+    menu->textfont(FL_HELVETICA);  // Use Inter font for menu
+    menu->textsize(13);            // 13px for UI elements
     menu->add("&File/New",  FL_CTRL + 'n', new_cb);
     menu->add("&File/Open", FL_CTRL + 'o', open_cb);
     menu->add("&File/Open Folder", 0, open_folder_cb);
@@ -495,7 +508,10 @@ int run_editor(int argc,char** argv){
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
     set_font_size(font_size);
-    editor->linenumber_width(30);
+
+    // Set comfortable line spacing for better readability
+    // FLTK doesn't have direct line-height, but we can adjust font leading
+    editor->linenumber_width(40);  // Wider for better spacing
     editor->linenumber_align(FL_ALIGN_RIGHT);
     editor->scrollbar_width(Fl::scrollbar_size());
     editor->wrap_mode(Fl_Text_Display::WRAP_AT_BOUNDS, 0);

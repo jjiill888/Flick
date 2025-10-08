@@ -123,25 +123,19 @@ void CustomTitleBar::draw_window_buttons() {
 }
 
 void CustomTitleBar::draw_button(const ButtonArea& btn, const char* symbol, Fl_Color bg_color) {
-    // Draw button background
+    // Draw button background with modern flat style
     fl_color(btn.pressed ? button_pressed_color_ : bg_color);
     fl_rectf(btn.x, btn.y, btn.w, btn.h);
-    
-    // Draw button border on hover
-    if (btn.hovered) {
-        fl_color(fl_rgb_color(100, 100, 100));
-        fl_rect(btn.x, btn.y, btn.w, btn.h);
-    }
-    
-    // Draw symbol
+
+    // Draw symbol with better positioning and size
     fl_color(text_color_);
-    fl_font(FL_HELVETICA, 14);
-    
+    fl_font(FL_HELVETICA, 16);  // Slightly larger for better visibility
+
     int text_width = (int)fl_width(symbol);
     int text_height = fl_height();
     int text_x = btn.x + (btn.w - text_width) / 2;
-    int text_y = btn.y + (btn.h + text_height) / 2 - 2;
-    
+    int text_y = btn.y + (btn.h + text_height) / 2 - 3;
+
     fl_draw(symbol, text_x, text_y);
 }
 
