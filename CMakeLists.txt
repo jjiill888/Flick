@@ -59,6 +59,7 @@ set(SOURCES
     src/editor_state.cpp
     src/tab_bar.cpp
     src/dock_button.cpp
+    src/custom_title_bar.cpp
 )
 
 # Header files
@@ -72,6 +73,7 @@ set(HEADERS
     src/editor_state.hpp
     src/tab_bar.hpp
     src/dock_button.hpp
+    src/custom_title_bar.hpp
 )
 
 # Create executable

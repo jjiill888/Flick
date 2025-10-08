@@ -40,6 +40,8 @@ extern TabBar          *tab_bar;
 
 class DockButton;
 extern DockButton      *dock_button;
+class CustomTitleBar;
+extern CustomTitleBar  *title_bar;
 extern time_t           last_save_time;
 extern int             tree_width;
 extern Theme           current_theme;

@@ -5,6 +5,7 @@
 #include "scrollbar_theme.hpp"
 #include "tab_bar.hpp"
 #include "dock_button.hpp"
+#include "custom_title_bar.hpp"
 #include <FL/Fl_Text_Display.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl.H>
@@ -30,6 +31,7 @@ Fl_Box          *tree_resizer = nullptr;
 Fl_Menu_Button *tree_context_menu = nullptr;
 TabBar          *tab_bar = nullptr;
 DockButton      *dock_button = nullptr;
+CustomTitleBar  *title_bar = nullptr;
 time_t           last_save_time = 0;
 int             tree_width = 200;
 Theme           current_theme = THEME_DARK;
@@ -65,31 +67,39 @@ EditorWindow::EditorWindow(int W,int H,const char* L)
 
 void EditorWindow::resize(int X,int Y,int W,int H) {
     Fl_Double_Window::resize(X,Y,W,H);
-    if (menu && editor && status_left && status_right) {
+    if (title_bar && menu && editor && status_left && status_right) {
+        const int title_h = title_bar->h();
+        const int menu_h = menu->h();
+        const int content_y = title_h + menu_h;  // Content below title bar and menu
         const int status_h = status_left->h();
         const int tab_h = tab_bar ? tab_bar->h() : 0;
         int tree_w = file_tree ? tree_width : 0;
         int resize_w = tree_resizer ? tree_resizer->w() : 0;
-        
+
+        // Update title bar size (full width)
+        title_bar->resize(0, 0, W, title_h);
+
+        // Update menu bar position and size
+        menu->resize(0, title_h, W, menu_h);
+
         // Position tab bar only on the right side (not over file tree)
         if (tab_bar) {
-            tab_bar->position(tree_w + resize_w, menu->h());
+            tab_bar->position(tree_w + resize_w, content_y);
             tab_bar->size(W - tree_w - resize_w, tab_h);
         }
-        
+
         // Position editor below tab bar
-        editor->position(tree_w + resize_w, menu->h() + tab_h);
-        editor->size(W - tree_w - resize_w, H - menu->h() - tab_h - status_h);
-        
+        editor->position(tree_w + resize_w, content_y + tab_h);
+        editor->size(W - tree_w - resize_w, H - content_y - tab_h - status_h);
+
         if (file_tree) {
-            file_tree->position(0, menu->h());
-            file_tree->size(tree_w, H - menu->h() - status_h);
+            file_tree->position(0, content_y);
+            file_tree->size(tree_w, H - content_y - status_h);
             if (tree_resizer) {
-                tree_resizer->position(tree_w, menu->h());
-                tree_resizer->size(resize_w, H - menu->h() - status_h);
+                tree_resizer->position(tree_w, content_y);
+                tree_resizer->size(resize_w, H - content_y - status_h);
             }
         }
-        menu->size(W, menu->h());
 
         // Update dock button position
         if (dock_button) {
@@ -111,23 +121,149 @@ void EditorWindow::resize(int X,int Y,int W,int H) {
 }
 
 int EditorWindow::handle(int e) {
+    const int RESIZE_BORDER = 5;  // Border thickness for resize detection
+    static int resize_mode = 0;   // 0=none, 1=left, 2=right, 3=top, 4=bottom, 5=topleft, 6=topright, 7=bottomleft, 8=bottomright
+    static int start_x = 0, start_y = 0, start_w = 0, start_h = 0, start_wx = 0, start_wy = 0;
+
+    int mx = Fl::event_x();
+    int my = Fl::event_y();
+
+    // Determine which edge/corner we're near
+    auto get_resize_area = [&]() -> int {
+        bool near_left = mx < RESIZE_BORDER;
+        bool near_right = mx > w() - RESIZE_BORDER;
+        bool near_top = my < RESIZE_BORDER;
+        bool near_bottom = my > h() - RESIZE_BORDER;
+
+        if (near_top && near_left) return 5;      // Top-left corner
+        if (near_top && near_right) return 6;     // Top-right corner
+        if (near_bottom && near_left) return 7;   // Bottom-left corner
+        if (near_bottom && near_right) return 8;  // Bottom-right corner
+        if (near_left) return 1;                  // Left edge
+        if (near_right) return 2;                 // Right edge
+        if (near_top) return 3;                   // Top edge
+        if (near_bottom) return 4;                // Bottom edge
+        return 0;                                 // No resize area
+    };
+
+    if (e == FL_MOVE && resize_mode == 0) {
+        int area = get_resize_area();
+        // Set cursor based on resize area
+        switch (area) {
+            case 1: case 2: fl_cursor(FL_CURSOR_WE); break;          // Left/Right
+            case 3: case 4: fl_cursor(FL_CURSOR_NS); break;          // Top/Bottom
+            case 5: case 8: fl_cursor(FL_CURSOR_NWSE); break;        // NW-SE diagonal
+            case 6: case 7: fl_cursor(FL_CURSOR_NESW); break;        // NE-SW diagonal
+            default: fl_cursor(FL_CURSOR_DEFAULT); break;
+        }
+        return 1;
+    }
+
+    if (e == FL_PUSH && Fl::event_button() == FL_LEFT_MOUSE) {
+        resize_mode = get_resize_area();
+        if (resize_mode > 0) {
+            start_x = Fl::event_x_root();
+            start_y = Fl::event_y_root();
+            start_w = w();
+            start_h = h();
+            start_wx = x();
+            start_wy = y();
+            return 1;
+        }
+    }
+
+    if (e == FL_DRAG && resize_mode > 0) {
+        int dx = Fl::event_x_root() - start_x;
+        int dy = Fl::event_y_root() - start_y;
+        int new_x = start_wx, new_y = start_wy, new_w = start_w, new_h = start_h;
+
+        const int MIN_W = 400, MIN_H = 300;
+
+        switch (resize_mode) {
+            case 1: // Left edge
+                new_w = start_w - dx;
+                if (new_w >= MIN_W) new_x = start_wx + dx;
+                else new_w = MIN_W;
+                break;
+            case 2: // Right edge
+                new_w = start_w + dx;
+                if (new_w < MIN_W) new_w = MIN_W;
+                break;
+            case 3: // Top edge
+                new_h = start_h - dy;
+                if (new_h >= MIN_H) new_y = start_wy + dy;
+                else new_h = MIN_H;
+                break;
+            case 4: // Bottom edge
+                new_h = start_h + dy;
+                if (new_h < MIN_H) new_h = MIN_H;
+                break;
+            case 5: // Top-left corner
+                new_w = start_w - dx;
+                new_h = start_h - dy;
+                if (new_w >= MIN_W) new_x = start_wx + dx;
+                else new_w = MIN_W;
+                if (new_h >= MIN_H) new_y = start_wy + dy;
+                else new_h = MIN_H;
+                break;
+            case 6: // Top-right corner
+                new_w = start_w + dx;
+                new_h = start_h - dy;
+                if (new_w < MIN_W) new_w = MIN_W;
+                if (new_h >= MIN_H) new_y = start_wy + dy;
+                else new_h = MIN_H;
+                break;
+            case 7: // Bottom-left corner
+                new_w = start_w - dx;
+                new_h = start_h + dy;
+                if (new_w >= MIN_W) new_x = start_wx + dx;
+                else new_w = MIN_W;
+                if (new_h < MIN_H) new_h = MIN_H;
+                break;
+            case 8: // Bottom-right corner
+                new_w = start_w + dx;
+                new_h = start_h + dy;
+                if (new_w < MIN_W) new_w = MIN_W;
+                if (new_h < MIN_H) new_h = MIN_H;
+                break;
+        }
+
+        resize(new_x, new_y, new_w, new_h);
+        return 1;
+    }
+
+    if (e == FL_RELEASE) {
+        if (resize_mode > 0) {
+            resize_mode = 0;
+            fl_cursor(FL_CURSOR_DEFAULT);
+            save_window_state();
+            return 1;
+        }
+    }
+
+    if (e == FL_LEAVE) {
+        if (resize_mode == 0) {
+            fl_cursor(FL_CURSOR_DEFAULT);
+        }
+    }
+
     int ret = Fl_Double_Window::handle(e);
-    
+
     // Save window state when window is moved or resized
-    if (e == FL_MOVE || e == FL_DRAG) {
+    if (e == FL_MOVE) {
         // Update global variables
         window_x = x();
         window_y = y();
         window_w = w();
         window_h = h();
-        
+
         // Save to file periodically (not on every move/resize to avoid excessive I/O)
         static int save_counter = 0;
         if (++save_counter % 10 == 0) {  // Save every 10th event
             save_window_state();
         }
     }
-    
+
     return ret;
 }
 
@@ -232,7 +368,24 @@ int run_editor(int argc,char** argv){
     win = new EditorWindow(window_w, window_h, "Flick");
     win->position(window_x, window_y);
     win->callback(quit_cb);
-    menu = new Fl_Menu_Bar(0,0,win->w(),25);
+    win->border(0);  // Remove system title bar and borders
+
+    // Create custom title bar
+    const int title_h = CustomTitleBar::TITLE_BAR_HEIGHT;
+    title_bar = new CustomTitleBar(0, 0, win->w(), title_h, "Flick");
+
+    // Set up title bar window control callbacks
+    title_bar->on_close_callback([](Fl_Widget*, void*) {
+        quit_cb(nullptr, nullptr);
+    }, nullptr);
+
+    title_bar->on_minimize_callback([](Fl_Widget*, void*) {
+        if (win) win->iconize();
+    }, nullptr);
+
+    // Create menu bar below title bar
+    const int menu_h = 25;
+    menu = new Fl_Menu_Bar(0, title_h, win->w(), menu_h);
     menu->add("&File/New",  FL_CTRL + 'n', new_cb);
     menu->add("&File/Open", FL_CTRL + 'o', open_cb);
     menu->add("&File/Open Folder", 0, open_folder_cb);
@@ -245,25 +398,26 @@ int run_editor(int argc,char** argv){
     menu->add("&Find/Global Search...", FL_CTRL | FL_SHIFT | 'f', global_search_cb);
 
     const int status_h = 20;
+    const int content_y = title_h + menu_h;  // Content starts below title bar and menu
     font_size = load_font_size();
-    
+
     // Create file tree but don't load content immediately
-    file_tree = new My_Tree(0,25,tree_width,win->h()-25-status_h);
+    file_tree = new My_Tree(0, content_y, tree_width, win->h() - content_y - status_h);
     file_tree->callback(tree_cb);
     file_tree->showroot(false);
     file_tree->root_label("Loading...");
-    
+
     tree_context_menu = new Fl_Menu_Button(0,0,0,0);
     tree_context_menu->hide();
     tree_context_menu->add("New File", 0, legacy_tree_new_file_cb);
     tree_context_menu->add("New Folder", 0, legacy_tree_new_folder_cb);
     tree_context_menu->add("Refresh", 0, legacy_tree_refresh_cb);
     tree_context_menu->add("Delete", 0, legacy_tree_delete_cb);
-    tree_resizer = new TreeResizer(tree_width,25,4,win->h()-25-status_h);
-    
+    tree_resizer = new TreeResizer(tree_width, content_y, 4, win->h() - content_y - status_h);
+
     // Create tab bar on right side only (not over file tree)
     const int tab_h = 22;
-    tab_bar = new TabBar(tree_width + tree_resizer->w(), 25,
+    tab_bar = new TabBar(tree_width + tree_resizer->w(), content_y,
                          win->w() - tree_width - tree_resizer->w(), tab_h);
     
     // Set up tab bar callbacks
@@ -334,10 +488,10 @@ int run_editor(int argc,char** argv){
     
     // Load saved tab state
     tab_bar->load_tab_state();
-    
-    editor = new My_Text_Editor(tree_width + tree_resizer->w(), 25 + tab_h,
+
+    editor = new My_Text_Editor(tree_width + tree_resizer->w(), content_y + tab_h,
                                 win->w() - tree_width - tree_resizer->w(),
-                                win->h() - 25 - tab_h - status_h);
+                                win->h() - content_y - tab_h - status_h);
     editor->buffer(buffer);
     editor->textfont(FL_COURIER);
     set_font_size(font_size);

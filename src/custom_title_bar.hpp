@@ -18,7 +18,8 @@ public:
     
     void draw() override;
     int handle(int event) override;
-    
+    void resize(int x, int y, int w, int h) override;
+
     // Title and window management
     void set_title(const char* title);
     const char* get_title() const { return title_.c_str(); }

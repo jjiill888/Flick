@@ -52,32 +52,29 @@ CustomTitleBar::~CustomTitleBar() {
 void CustomTitleBar::update_button_positions() {
     int btn_y = y();
     int right_edge = x() + w();
-    
+
     // Windows-style button order: minimize, maximize, close (right to left)
     close_btn_ = ButtonArea(right_edge - BUTTON_WIDTH, btn_y, BUTTON_WIDTH, BUTTON_HEIGHT);
     maximize_btn_ = ButtonArea(right_edge - 2 * BUTTON_WIDTH, btn_y, BUTTON_WIDTH, BUTTON_HEIGHT);
     minimize_btn_ = ButtonArea(right_edge - 3 * BUTTON_WIDTH, btn_y, BUTTON_WIDTH, BUTTON_HEIGHT);
-    
-    // Update menu bar size to not overlap buttons (if menu bar is set)
-    if (menu_bar_) {
-        menu_bar_->resize(x(), y(), w() - 3 * BUTTON_WIDTH, h());
-    }
+}
+
+void CustomTitleBar::resize(int x, int y, int w, int h) {
+    Fl_Widget::resize(x, y, w, h);
+    update_button_positions();
 }
 
 void CustomTitleBar::draw() {
-    // Only draw the title area and buttons, not the menu area
-    int menu_width = menu_bar_ ? (w() - 3 * BUTTON_WIDTH) : 0;
-    
-    // Draw background only for title and button area
+    // Draw full background for title bar
     fl_color(bg_color_);
-    fl_rectf(x() + menu_width, y(), w() - menu_width, h());
-    
-    // Draw title text (in the space between menu and buttons)
+    fl_rectf(x(), y(), w(), h());
+
+    // Draw title text in the center
     draw_title_text();
-    
-    // Draw window control buttons
+
+    // Draw window control buttons on the right
     draw_window_buttons();
-    
+
     // Draw border line at bottom for the entire width
     fl_color(fl_rgb_color(60, 60, 60));
     fl_line(x(), y() + h() - 1, x() + w(), y() + h() - 1);
@@ -85,29 +82,29 @@ void CustomTitleBar::draw() {
 
 void CustomTitleBar::draw_title_text() {
     if (title_.empty()) return;
-    
-    // Calculate available space for title
-    int menu_width = menu_bar_ ? (w() - 3 * BUTTON_WIDTH) : 0;
-    int title_start = menu_width + 10;
+
+    // Calculate available space for title (center area, avoiding buttons on right)
+    int title_start = x() + 10;
     int title_end = minimize_btn_.x - 10;
     int title_width = title_end - title_start;
-    
+
     if (title_width > 50) { // Only draw if we have reasonable space
         fl_color(text_color_);
         fl_font(FL_HELVETICA, 12);
-        
+
         // Truncate title if too long
         std::string display_title = title_;
         int text_width = (int)fl_width(display_title.c_str());
-        
+
         while (text_width > title_width - 20 && display_title.length() > 10) {
             display_title = display_title.substr(0, display_title.length() - 4) + "...";
             text_width = (int)fl_width(display_title.c_str());
         }
-        
+
+        // Center the title in the available space
         int text_x = title_start + (title_width - text_width) / 2;
         int text_y = y() + h() / 2 + 4; // Center vertically
-        
+
         fl_draw(display_title.c_str(), text_x, text_y);
     }
 }
@@ -172,8 +169,7 @@ int CustomTitleBar::handle(int event) {
                     redraw();
                     ret = 1;
                 } else {
-                    // Always try to start dragging if not over buttons
-                    // The menu area is handled by a separate widget
+                    // Allow dragging anywhere in title bar except on buttons
                     double current_time = (double)time(nullptr);
                     if (current_time - last_click_time_ < DOUBLE_CLICK_TIME &&
                         abs(mx - last_click_x_) < DOUBLE_CLICK_DISTANCE &&

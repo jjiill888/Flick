@@ -4,6 +4,7 @@
 #include "scrollbar_theme.hpp"
 #include "editor_window.hpp"
 #include "tab_bar.hpp"
+#include "custom_title_bar.hpp"
 #include <thread>
 #include <FL/Fl_Text_Display.H>
 #include <FL/Fl.H>
@@ -287,6 +288,9 @@ void update_title() {
     snprintf(title, sizeof(title), "%s%s - Flick",
              name, text_changed ? "*" : "");
     win->copy_label(title);
+    if (title_bar) {
+        title_bar->set_title(title);
+    }
 }
 
 void update_status() {
@@ -653,6 +657,13 @@ void apply_theme(Theme theme) {
         Fl::background(30, 30, 30);  // VSCode main background
         Fl::background2(37, 37, 38); // VSCode secondary background
         Fl::foreground(204, 204, 204); // VSCode text color
+        if (title_bar) {
+            title_bar->set_theme_colors(
+                fl_rgb_color(45, 45, 48),    // Background
+                fl_rgb_color(204, 204, 204), // Text color
+                fl_rgb_color(45, 45, 48)     // Button color
+            );
+        }
         if (menu) {
             menu->color(fl_rgb_color(45, 45, 45));  // VSCode menu bar
             menu->textcolor(fl_rgb_color(204, 204, 204));
@@ -714,6 +725,13 @@ void apply_theme(Theme theme) {
         Fl::background(240, 240, 240);
         Fl::background2(250, 250, 250);
         Fl::foreground(30, 30, 30);
+        if (title_bar) {
+            title_bar->set_theme_colors(
+                fl_rgb_color(240, 240, 240),  // Background
+                fl_rgb_color(30, 30, 30),     // Text color
+                fl_rgb_color(240, 240, 240)   // Button color
+            );
+        }
         if (menu) {
             menu->color(fl_rgb_color(240, 240, 240));
             menu->textcolor(fl_rgb_color(30, 30, 30));
